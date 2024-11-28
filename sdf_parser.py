@@ -56,7 +56,7 @@ def extract_component_ports(vhdl_code):
         
         for port_name, direction, port_type in port_declarations:
             port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
-            port_type = re.sub(r'\)\)', ')', port_type) # Replace )) by )
+            port_type = re.sub(r'\)\s*\)', ')', port_type) # Replace )) by )
             port_type = re.sub(r'std_logic\s*\)', 'std_logic', port_type) # Replace std_logic) by std_logic
 
             ports.append([
@@ -80,7 +80,7 @@ def extract_module_ports(vhdl_code):
         port_declarations = []
         
         port_lines = match.group(1)
-        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\)\;)\s*'
         double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
         triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
         quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
@@ -109,7 +109,7 @@ def extract_module_ports(vhdl_code):
 
         for port_name, direction, port_type in port_declarations:
             port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
-            port_type = re.sub(r'\)\)', ')', port_type)  # Replace )) by )
+            port_type = re.sub(r'\)\s*\)', ')', port_type)  # Replace )) by )
             port_type = re.sub(r'std_logic\s*\)', 'std_logic', port_type) # Replace std_logic) by std_logic
 
             ports.append([
@@ -342,8 +342,8 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"communication_controller_vhdl_16550_uart_core\gh_uart_16550_101307" # modify this path 
-        output_file_path = r"communication_controller_vhdl_16550_uart_core\signals.csv" # modify this path
+        input_directory = r"communication_controller_spi_serial_dac_interface" # modify this path 
+        output_file_path = r"communication_controller_spi_serial_dac_interface\signals.csv" # modify this path
     
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
