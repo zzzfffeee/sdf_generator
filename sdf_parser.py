@@ -247,7 +247,9 @@ def extract_port_map(vhdl_code, component_list) :
         port_mapping = []
         port_lines = ports.split(',')
         for line in port_lines:
-            port, signal = [item.strip().lower() for item in line.split('=>')]
+            port, signal_full = [item.strip().lower() for item in line.split('=>')]
+            signal_match = re.match(r'(\w+)', signal_full)
+            signal = signal_match.group(1) if signal_match else signal_full
             port_mapping.append([port,signal,dir_finding(component_name.lower(),port,component_list)])
         port_maps.append([
             instance_name.lower(),
@@ -333,7 +335,7 @@ def process_files_in_directory(directory_path, output_txt_path, file_extension, 
 # Main program
 def main():
 
-    from_terminal = 1 # If this option is selected, you must provide input_directory and output_file_path as arguments.
+    from_terminal = 0 # If this option is selected, you must provide input_directory and output_file_path as arguments.
 
     if from_terminal == 1:
         if len(sys.argv) != 3:
