@@ -18,7 +18,7 @@ def find_entity_name(vhdl_code):
 
 def extract_component_ports(vhdl_code):
 
-    component_pattern = r'COMPONENT\s+(\w+)\s*(?:IS\s*)?(?:GENERIC\s*\((.*?)\)\s*;)?\s*port\s*\((.*?)end\s+component\s*;'
+    component_pattern = r'COMPONENT\s+(\w+)\s*(?:IS\s*)?(?:GENERIC\s*\((.*?)\)\s*;)?\s*port\s*\((.*?)end\s+component\s*'
 
     components_declarations = re.findall(component_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
 
@@ -28,18 +28,18 @@ def extract_component_ports(vhdl_code):
         component = [component_name.strip().lower()]
         ports=[]
         port_declarations = []
-        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE )
-        double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE )
-        triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE )
-        quad_port_declarations   = re.findall(quad_port_pattern, port_lines, re.IGNORECASE )
-        quintuple_port_declarations = re.findall(quintuple_port_pattern, port_lines, re.IGNORECASE)
-        sextuple_port_declarations = re.findall(sextuple_port_pattern, port_lines, re.IGNORECASE)
+        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
+        double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
+        triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
+        quad_port_declarations   = re.findall(quad_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
+        quintuple_port_declarations = re.findall(quintuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
+        sextuple_port_declarations = re.findall(sextuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
 
         for i in range(len(single_port_declarations)) :
             port_declarations.append(single_port_declarations[i])
@@ -80,18 +80,18 @@ def extract_module_ports(vhdl_code):
         port_declarations = []
         
         port_lines = match.group(1)
-        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
-        single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE )
-        double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE )
-        triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE )
-        quad_port_declarations   = re.findall(quad_port_pattern, port_lines, re.IGNORECASE )
-        quintuple_port_declarations = re.findall(quintuple_port_pattern, port_lines, re.IGNORECASE)
-        sextuple_port_declarations = re.findall(sextuple_port_pattern, port_lines, re.IGNORECASE)
+        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
+        double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
+        triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
+        quad_port_declarations   = re.findall(quad_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
+        quintuple_port_declarations = re.findall(quintuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
+        sextuple_port_declarations = re.findall(sextuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
         
 
         for i in range(len(single_port_declarations)) :
@@ -272,7 +272,6 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code):
     port_map_list = extract_port_map(vhdl_code,component_list)
     external_signals = extract_external_signals(vhdl_code,module,port_map_list, entity_name)
     internal_signals = extract_internal_signals(vhdl_code,port_map_list, entity_name)
-    
     with open(output_file_path, mode='a', newline='') as file_csv:
         writer = csv.writer(file_csv)
         writer = csv.writer(file_csv,delimiter= ';')
@@ -343,8 +342,8 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"communication_controller_i2s_to_paralell_adc-dac_controller" # modify this path 
-        output_file_path = r"communication_controller_i2s_to_paralell_adc-dac_controller\signals.csv" # modify this path
+        input_directory = r"communication_controller_vhdl_16550_uart_core\gh_uart_16550_101307" # modify this path 
+        output_file_path = r"communication_controller_vhdl_16550_uart_core\signals.csv" # modify this path
     
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
