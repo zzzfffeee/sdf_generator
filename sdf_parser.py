@@ -18,14 +18,14 @@ def find_entity_name(vhdl_code):
 
 def extract_component_ports(vhdl_code):
 
-    component_pattern = r'COMPONENT\s+(\w+)\s+IS\s+(?:GENERIC\s*\((.*?)\)\s*;)?\s*port\s*\((.*?)end\s+component\s*;' 
+    component_pattern = r'COMPONENT\s+(\w+)\s*(?:IS\s*)?(?:GENERIC\s*\((.*?)\)\s*;)?\s*port\s*\((.*?)end\s+component\s*;'
 
     components_declarations = re.findall(component_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
 
     components = [] # list all components : [[comp_1_name,comp_1_port],[comp_2_name,comp_2_port],...]
 
     for component_name, generic, port_lines in components_declarations : 
-        component = [component_name]
+        component = [component_name.strip().lower()]
         ports=[]
         port_declarations = []
         single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;'
@@ -71,7 +71,7 @@ def extract_component_ports(vhdl_code):
 
 def extract_module_ports(vhdl_code):
 
-    port_pattern = r'port\s*\((.*?)end\s+entity\s*;'
+    port_pattern = r'port\s*\((.*?)end\s+'
     match = re.search(port_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
 
     ports = []
@@ -117,7 +117,7 @@ def extract_module_ports(vhdl_code):
                 direction.strip().lower(),  
                 port_type.strip().lower()        
             ])
-   
+
     return ports
 
 def extract_internal_signals(vhdl_code,port_map_list, entity_name):
@@ -242,13 +242,13 @@ def extract_port_map(vhdl_code, component_list) :
 
     matches = re.findall(port_map_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
     port_maps = []
-    
     for instance_name, component_name, ports in matches:
         port_mapping = []
         port_lines = ports.split(',')
         for line in port_lines:
             port, signal_full = [item.strip().lower() for item in line.split('=>')]
             signal_match = re.match(r'(\w+)', signal_full)
+
             signal = signal_match.group(1) if signal_match else signal_full
             port_mapping.append([port,signal,dir_finding(component_name.lower(),port,component_list)])
         port_maps.append([
@@ -256,7 +256,6 @@ def extract_port_map(vhdl_code, component_list) :
             component_name.lower(),
             port_mapping 
         ])
-    
     return port_maps
 
 
@@ -344,8 +343,8 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"communication_controller_vhdl_16550_uart_core\gh_uart_16550_101307\uart" # modify this path 
-        output_file_path = r"communication_controller_vhdl_16550_uart_core\signals.csv" # modify this path
+        input_directory = r"communication_controller_i2s_to_paralell_adc-dac_controller" # modify this path 
+        output_file_path = r"communication_controller_i2s_to_paralell_adc-dac_controller\signals.csv" # modify this path
     
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
