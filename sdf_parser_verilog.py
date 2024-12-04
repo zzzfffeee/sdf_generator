@@ -305,7 +305,7 @@ def process_files_in_directory(directory_path, output_txt_path, file_extension):
 # Main program
 def main():
     start_time = time.time()
-    from_terminal = 0 # If this option is selected, you must provide input_directory and output_file_path as arguments.
+    from_terminal = 1 # If this option is selected, you must provide input_directory and output_file_path as arguments.
 
     if from_terminal == 0:
         if len(sys.argv) != 3:
