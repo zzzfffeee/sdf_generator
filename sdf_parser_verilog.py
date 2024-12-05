@@ -4,6 +4,8 @@ import os
 import sys
 import time
 
+DEBUG = True
+
 def remove_comments(verilog_code):                                                            
     verilog_code = re.sub(r'//.*', '', verilog_code)                                                
     verilog_code = re.sub(r'/\*.*?\*/', '', verilog_code, flags=re.DOTALL)                           
@@ -28,12 +30,12 @@ def extract_module(verilog_code):
         for j in range(len(matches)) :     
             ports = []
             port_declarations = []
-            single_port_pattern    = r'\b(input|output|inout)\s*(wire\b|reg\b)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)'
-            double_port_pattern    = r'\b(input|output|inout)\s*(wire\b|reg\b)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            triple_port_pattern    = r'\b(input|output|inout)\s*(wire\b|reg\b)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            quad_port_pattern      = r'\b(input|output|inout)\s*(wire\b|reg\b)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            quintuple_port_pattern = r'\b(input|output|inout)\s*(wire\b|reg\b)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            sextuple_port_pattern  = r'\b(input|output|inout)\s*(wire\b|reg\b)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            single_port_pattern    = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)'
+            double_port_pattern    = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            triple_port_pattern    = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            quad_port_pattern      = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            quintuple_port_pattern = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            sextuple_port_pattern  = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
             single_port_declarations = re.findall( single_port_pattern, matches[j][1],re.IGNORECASE | re.DOTALL )
             double_port_declarations = re.findall( double_port_pattern, matches[j][1],re.IGNORECASE | re.DOTALL )
             triple_port_declarations = re.findall(triple_port_pattern, matches[j][1], re.IGNORECASE  | re.DOTALL)
@@ -115,12 +117,12 @@ def extract_submodule_list(verilog_code, module_list) :
 def extract_internal_signals (module_code,module_name,submodule_list):
     signals = []
     signal_declarations_full = []
-    single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire|reg)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    double_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire|reg)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    triple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire|reg)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quad_signal_pattern      = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire|reg)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quintuple_signal_pattern = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire|reg)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    sextuple_signal_pattern  = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire|reg)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
+    double_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*'
+    triple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    quad_signal_pattern      = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    quintuple_signal_pattern = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    sextuple_signal_pattern  = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
     single_signal_declarations = re.findall( single_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
     double_signal_declarations = re.findall( double_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
     triple_signal_declarations = re.findall(triple_signal_pattern, module_code, re.IGNORECASE  | re.DOTALL)
@@ -164,6 +166,24 @@ def extract_internal_signals (module_code,module_name,submodule_list):
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
+        size_pattern = r'\[\s*(\d+)\s*:\s*(\d+)\s*\]'
+        size_pattern_generic = r'\[\s*(\w+)\s*(-\s*1)?\s*:\s*(\d+)\s*\]'
+        integer_pattern = r'integer(.*?)'
+        if (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+            signal_size = '32'
+        elif (match:=re.search(size_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+            signal_size = str(int(match.group(1))-int(match.group(2))+1)
+        elif (match:=re.search(size_pattern_generic,signal_type,re.DOTALL | re.IGNORECASE)) :
+            if((-(match.group(2)!=None)+1-int(match.group(3)))==0) :
+                signal_size = match.group(1)
+            else : 
+                signal_size = match.group(1)+str(-(match.group(2)!=None)+1-int(match.group(3)))
+        elif ((signal_type.strip().lower()=='wire')|(signal_type.strip().lower()=='reg')) :
+            signal_size = '1'
+        else :
+            signal_size = 'unknown'
+            if(DEBUG == True) :
+                print(f'size of {signal_type} is unknown')
 
         for instance, submodule, ports  in submodule_list :
             for port in ports : 
@@ -181,20 +201,41 @@ def extract_internal_signals (module_code,module_name,submodule_list):
         if (instance_scr_name == []) :
             module_src_name.append(module_name)
             instance_scr_name.append(module_name)    
-        signals.append([signal_name.strip().lower(), signal_type.strip().lower(),instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
+        signals.append([signal_name.strip().lower(), signal_type.strip().lower(),signal_size.strip().lower(),instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     return signals
 
 def extract_external_signals (module_code,module_list,module_name,submodule_list) :
     signals = []
+    module = []
     for i in range (len(module_list)) :
         for j in range (len(module_list[i][1])) : 
-            if (module_list[i][1][j][0]==module_name) :
+            if (module_list[i][1][j][0]==module_name.strip().lower()) :
                 module = module_list[i][1][j][1]
+    if (module==[]) :
+        print (f'module {module_name} is not found')
     for port in module :
         instance_scr_name = []
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
+        size_pattern = r'\[\s*(\d+)\s*:\s*(\d+)\s*\]'
+        size_pattern_generic = r'\[\s*(\w+)\s*(-\s*1)?\s*:\s*(\d+)\s*\]'
+        integer_pattern = r'integer(.*?)'
+        if (match:=re.search(integer_pattern,port[2],re.DOTALL | re.IGNORECASE)):
+            signal_size = '32'
+        elif (match:=re.search(size_pattern,port[2],re.DOTALL | re.IGNORECASE)):
+            signal_size = str(int(match.group(1))-int(match.group(2))+1)
+        elif (match:=re.search(size_pattern_generic,port[2],re.DOTALL | re.IGNORECASE)) :
+            if((-(match.group(2)!=None)+1-int(match.group(3)))==0) :
+                signal_size = match.group(1)
+            else : 
+                signal_size = match.group(1)+str(1-(match.group(2)!=None)-int(match.group(3)))
+        elif ((port[2].strip().lower()=='wire')|(port[2].strip().lower()=='reg')) :
+            signal_size = '1'
+        else :
+            signal_size = 'unknown'
+            if(DEBUG == True) :
+                print(f'size of {port[2]} is unknown')
         if((port[1] == 'input') | (port[1] == 'inout')) :
             module_src_name.append('input')
             instance_scr_name.append('input')
@@ -217,7 +258,7 @@ def extract_external_signals (module_code,module_list,module_name,submodule_list
         if (instance_scr_name == []) :
             module_src_name.append(module_name)
             instance_scr_name.append(module_name)    
-        signals.append([port[0], port[2],instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
+        signals.append([port[0], port[2],signal_size.strip().lower(),instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     return signals 
 
 def convert_to_csv_string(value): # (eg : [a,b,c] => "a,b,c")
@@ -239,27 +280,29 @@ def write_signals_to_csv(input_file_name,output_file_path, verilog_code, module_
             writer = csv.writer(file_csv)
             writer = csv.writer(file_csv,delimiter= ';')
             writer.writerow([f"file_name({input_file_name})"])
-            writer.writerow(["component", "signal_name", "type", "instance src", "component_src", "instance_dst", "component_dst"])
+            writer.writerow(["component", "signal_name", "type", "size","instance src", "component_src", "instance_dst", "component_dst"])
     
             for signal in external_signals:
                 writer.writerow([
                 module_name,
                 signal[0],
                 signal[1],
-                convert_to_csv_string(signal[2]),
+                signal[2],
                 convert_to_csv_string(signal[3]),
                 convert_to_csv_string(signal[4]),
-                convert_to_csv_string(signal[5])
+                convert_to_csv_string(signal[5]),
+                convert_to_csv_string(signal[6])
             ])
             for signal in internal_signals:
                 writer.writerow([
                     "Internal",
                     signal[0],
                     signal[1],
-                    convert_to_csv_string(signal[2]),
+                    signal[2],
                     convert_to_csv_string(signal[3]),
                     convert_to_csv_string(signal[4]),
-                    convert_to_csv_string(signal[5])
+                    convert_to_csv_string(signal[5]),
+                    convert_to_csv_string(signal[6])
                 ])
 
 def process_files_in_directory(directory_path, output_txt_path, file_extension):
@@ -304,9 +347,11 @@ def process_files_in_directory(directory_path, output_txt_path, file_extension):
 
 # Main program
 def main():
-    start_time = time.time()
     from_terminal = 1 # If this option is selected, you must provide input_directory and output_file_path as arguments.
-
+    if DEBUG : 
+        print('DEBUG Mode enable')
+    else : 
+        print('DEBUG Mode disable')
     if from_terminal == 1:
         if len(sys.argv) != 3:
             print("Usage: python prog.py <input_directory> <output_file_path>")
@@ -314,16 +359,14 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"..\project\communication_controller_ethernet_10ge_mac\rtl" # modify this path 
-        output_file_path = r"..\project\communication_controller_ethernet_10ge_mac\signals.csv" # modify this path
+        input_directory = r"..\project\Verilog\arithmetic_core_gaussian_noise_generator\rtl" # modify this path 
+        output_file_path = r"..\project\Verilog\arithmetic_core_gaussian_noise_generator\rtl\signals.csv" # modify this path
     
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
     directory_path = os.path.abspath(input_directory)
     process_files_in_directory(directory_path,output_file_path,'.v')
-    end_time = time.time()  
-    execution_time = end_time - start_time
-    print (f"Temps d'exécution : {execution_time:.5f} secondes")
+
 
 
 if __name__ == "__main__":
