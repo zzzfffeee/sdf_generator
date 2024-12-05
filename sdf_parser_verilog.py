@@ -30,12 +30,12 @@ def extract_module(verilog_code):
         for j in range(len(matches)) :     
             ports = []
             port_declarations = []
-            single_port_pattern    = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)'
-            double_port_pattern    = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            triple_port_pattern    = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            quad_port_pattern      = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            quintuple_port_pattern = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            sextuple_port_pattern  = r'\b(input|output|inout)\s*(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            single_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)'
+            double_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            triple_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            quad_port_pattern      = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            quintuple_port_pattern = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            sextuple_port_pattern  = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
             single_port_declarations = re.findall( single_port_pattern, matches[j][1],re.IGNORECASE | re.DOTALL )
             double_port_declarations = re.findall( double_port_pattern, matches[j][1],re.IGNORECASE | re.DOTALL )
             triple_port_declarations = re.findall(triple_port_pattern, matches[j][1], re.IGNORECASE  | re.DOTALL)
@@ -83,7 +83,7 @@ def find_port(port_name, module_name,module_list) :
 
 def extract_submodule_list(verilog_code, module_list) :
     sub_module_pattern = r'(?:(?:\w+)\s*#\(\s*parameter )|(\w+)\s*(?:#\((?:.*?(?:\(.*?\)\s*)*)*\))?\s*(\w+)\s*\(\s*\.(.*?)(?:\)\s*\);)'
-    signal_inst_pattern = r'\s*\.(\w+)\s*\(\s*(\w+)\s*\)'
+    signal_inst_pattern = r'\s*\.(\w+)\s*\(\s*(\w+)\s*\[.*?\]\s*\)'
 
     matches = re.findall(sub_module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
     try:
@@ -117,12 +117,12 @@ def extract_submodule_list(verilog_code, module_list) :
 def extract_internal_signals (module_code,module_name,submodule_list):
     signals = []
     signal_declarations_full = []
-    single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    double_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    triple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quad_signal_pattern      = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quintuple_signal_pattern = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    sextuple_signal_pattern  = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(wire\s*(?:signed|unsigned)?|reg\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
+    double_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*'
+    triple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    quad_signal_pattern      = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    quintuple_signal_pattern = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    sextuple_signal_pattern  = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
     single_signal_declarations = re.findall( single_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
     double_signal_declarations = re.findall( double_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
     triple_signal_declarations = re.findall(triple_signal_pattern, module_code, re.IGNORECASE  | re.DOTALL)
@@ -359,8 +359,8 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"..\project\Verilog\arithmetic_core_gaussian_noise_generator\rtl" # modify this path 
-        output_file_path = r"..\project\Verilog\arithmetic_core_gaussian_noise_generator\rtl\signals.csv" # modify this path
+        input_directory = r"..\project\Verilog\i2c_master-slave_core\i2c_master_slave_core" # modify this path 
+        output_file_path = r"..\project\Verilog\i2c_master-slave_core\i2c_master_slave_core\signals.csv" # modify this path
     
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
