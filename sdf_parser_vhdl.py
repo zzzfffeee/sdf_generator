@@ -306,7 +306,7 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code):
         writer = csv.writer(file_csv)
         writer = csv.writer(file_csv,delimiter= ';')
         writer.writerow([f"file_name({input_file_name})"])
-        writer.writerow(["component", "signal_name", "type", "instance src", "component_src", "instance_dst", "component_dst"])
+        writer.writerow(["component", "signal_name", "type", "size","instance src", "component_src", "instance_dst", "component_dst"])
         
         for signal in external_signals:
             writer.writerow([
