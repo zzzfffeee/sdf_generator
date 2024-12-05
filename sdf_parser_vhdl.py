@@ -3,6 +3,7 @@ import csv
 import os
 import sys
 
+DEBUG = True
 
 def remove_comments(vhdl_code):                                                            
     code = re.sub(r'--.*', '', vhdl_code)
@@ -166,12 +167,26 @@ def extract_internal_signals(vhdl_code,port_map_list, entity_name):
         matches.append((match[3], match[6]))
         matches.append((match[4], match[6]))
         matches.append((match[5], match[6]))
-
     for signal_name, signal_type in matches: 
         instance_scr_name = []
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
+        std_logic_vector_pattern = r'std_logic_vector\s*\(\s*(\d+)\s*downto\s*(\d+)\s*\)'
+        std_logic_vector_generic_pattern = r'std_logic_vector\s*\(\s*(\w+)\s*-\s*1\s*downto\s*0\s*\)'
+        integer_pattern = r'integer(.*?)'
+        if ((signal_type=='std_logic')|(signal_type=='STD_LOGIC')) :
+            signal_size = '1'
+        elif (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+            signal_size = '8'
+        elif (match:=re.search(std_logic_vector_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+            signal_size = str(int(match.group(1))-int(match.group(2))+1)
+        elif (match:=re.search(std_logic_vector_generic_pattern,signal_type,re.DOTALL | re.IGNORECASE)) :
+            signal_size = match.group(1)
+        else :
+            signal_size = 'unknown' 
+            if(DEBUG) :
+                print(f'size of {signal_type} is unknown')
         for instance, component, ports  in port_map_list :
             for port in ports : 
                 if (port[1]==signal_name.strip().lower()) :
@@ -188,18 +203,33 @@ def extract_internal_signals(vhdl_code,port_map_list, entity_name):
         if (instance_scr_name == []) :
             module_src_name.append(entity_name)
             instance_scr_name.append(entity_name)    
-        signals.append([signal_name.strip().lower(), signal_type.strip().lower(),instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
+        signals.append([signal_name.strip().lower(), signal_type.strip().lower(),signal_size.strip().lower(),instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     
     return signals
 
 
-def extract_external_signals (vhdl_code,module, port_map_list,entity_name) :
+def extract_external_signals (module, port_map_list,entity_name) :
     signals = []
     for port in module :
         instance_scr_name = []
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
+        std_logic_vector_pattern = r'std_logic_vector\s*\(\s*(\d+)\s*downto\s*(\d+)\s*\)'
+        std_logic_vector_generic_pattern = r'std_logic_vector\s*\(\s*(\w+)\s*-\s*1\s*downto\s*0\s*\)'
+        integer_pattern = r'integer(.*?)'
+        if ((port[2]=='std_logic')|(port[2]=='STD_LOGIC')) :
+            signal_size = '1'
+        elif (match:=re.search(integer_pattern,port[2],re.DOTALL | re.IGNORECASE)):
+            signal_size = '32'
+        elif (match:=re.search(std_logic_vector_pattern,port[2],re.DOTALL | re.IGNORECASE)):
+            signal_size = str(int(match.group(1))-int(match.group(2))+1)
+        elif (match:=re.search(std_logic_vector_generic_pattern,port[2],re.DOTALL | re.IGNORECASE)) :
+            signal_size = match.group(1)
+        else :
+            signal_size = 'unknown' 
+            if(DEBUG) :
+                print(f'size of {port[2]} is unknown')
         
         if((port[1] == 'in') | (port[1] == 'inout')) :
             module_src_name.append('input')
@@ -223,7 +253,7 @@ def extract_external_signals (vhdl_code,module, port_map_list,entity_name) :
         if (instance_scr_name == []) :
             module_src_name.append(entity_name)
             instance_scr_name.append(entity_name)    
-        signals.append([port[0], port[2],instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
+        signals.append([port[0], port[2],signal_size,instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     return signals 
         
 
@@ -270,7 +300,7 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code):
     module = extract_module_ports(vhdl_code)
     component_list = extract_component_ports(vhdl_code)
     port_map_list = extract_port_map(vhdl_code,component_list)
-    external_signals = extract_external_signals(vhdl_code,module,port_map_list, entity_name)
+    external_signals = extract_external_signals(module,port_map_list, entity_name)
     internal_signals = extract_internal_signals(vhdl_code,port_map_list, entity_name)
     with open(output_file_path, mode='a', newline='') as file_csv:
         writer = csv.writer(file_csv)
@@ -283,20 +313,22 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code):
             entity_name,
             signal[0],
             signal[1],
-            convert_to_csv_string(signal[2]),
+            signal[2],
             convert_to_csv_string(signal[3]),
             convert_to_csv_string(signal[4]),
-            convert_to_csv_string(signal[5])
+            convert_to_csv_string(signal[5]),
+            convert_to_csv_string(signal[6])
         ])
         for signal in internal_signals:
             writer.writerow([
                 "Internal",
                 signal[0],
                 signal[1],
-                convert_to_csv_string(signal[2]),
+                signal[2],
                 convert_to_csv_string(signal[3]),
                 convert_to_csv_string(signal[4]),
-                convert_to_csv_string(signal[5])
+                convert_to_csv_string(signal[5]),
+                convert_to_csv_string(signal[6])
             ])
 
         
@@ -332,7 +364,12 @@ def process_files_in_directory(directory_path, output_txt_path, file_extension, 
 def main():
 
     from_terminal = 1 # If this option is selected, you must provide input_directory and output_file_path as arguments.
-
+    
+    if DEBUG : 
+        print('DEBUG Mode enable')
+    else : 
+        print('DEBUG Mode disable')
+    
     if from_terminal == 1:
         if len(sys.argv) != 3:
             print("Usage: python prog.py <input_directory> <output_file_path>")
@@ -340,8 +377,8 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"..\project\communication_controller_serializer-deserializer_for_audio_fiber_optic" # modify this path 
-        output_file_path = r"..\project\communication_controller_serializer-deserializer_for_audio_fiber_optic\signals.csv" # modify this path
+        input_directory = r"..\project\VHDL\communication_controller_i2s_to_paralell_adc-dac_controller" # modify this path 
+        output_file_path = r"..\project\VHDL\communication_controller_i2s_to_paralell_adc-dac_controller\signals.csv" # modify this path
     
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
