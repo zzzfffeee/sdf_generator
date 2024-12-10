@@ -2,27 +2,50 @@ import re
 import csv
 import os
 import sys
-import time
 
-DEBUG = True
+DEBUG = False
 
 def remove_comments(verilog_code):                                                            
     verilog_code = re.sub(r'//.*', '', verilog_code)                                                
     verilog_code = re.sub(r'/\*.*?\*/', '', verilog_code, flags=re.DOTALL)                           
     verilog_code = re.sub(r'function\s.*?endfunction', '', verilog_code, flags=re.DOTALL) 
     return verilog_code
-
+    
 
 def find_module_name(verilog_code):
-    """Find the name of the module."""
-    module_pattern = r'module\s+(\w+)\s*\('  # Recherche le mot-clé "module" suivi du nom
+    module_pattern = r'module\s*(\w+)'  # Recherche le mot-clé "module" suivi du nom
     match = re.search(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
     return match.group(1) if match else None
 
+def manage_define(verilog_code,define_list) :
+    pattern_clean = r"^`(?!ifdef|ifndef|else|include)\w.*"
+    verilog_code = re.sub(pattern_clean, "", verilog_code, flags=re.MULTILINE|re.IGNORECASE) # enlève tout ligne contenant le carractère ` mais qui n'est pas important 
+    ifdef_pattern = r'`ifdef\s*(\w+)\s*([^`]*)(?:`else([^`]*))?`endif'
+    ifndef_pattern = r'`ifndef\s*(\w+)\s*([^`]*)(?:`else([^`]*))?`endif'
+    while((re.search(ifdef_pattern,verilog_code,re.IGNORECASE|re.DOTALL)!=None)|(re.search(ifndef_pattern,verilog_code,re.IGNORECASE|re.DOTALL)!=None)):
+        match_1 = re.search(ifdef_pattern,verilog_code,re.IGNORECASE|re.DOTALL)         
+        if match_1 :
+            if any(match_1.group(1) in define_element for define_element in define_list):
+                verilog_code = re.sub(ifdef_pattern,match_1.group(2),verilog_code,count=1,flags=re.DOTALL|re.IGNORECASE)
+            else : 
+                if (match_1.group(3)==None) :
+                    verilog_code = re.sub(ifdef_pattern,'',verilog_code,count=1,flags=re.DOTALL|re.IGNORECASE)
+                else :
+                    verilog_code = re.sub(ifdef_pattern,match_1.group(3),verilog_code,count=1,flags=re.DOTALL|re.IGNORECASE)
+        match_2 = re.search(ifndef_pattern,verilog_code,re.IGNORECASE|re.DOTALL)
+        if match_2:
+            if any(match_2.group(1) in define_element for define_element in define_list):
+                if (match_2.group(3)==None) :
+                    verilog_code = re.sub(ifndef_pattern,'',verilog_code,count=1,flags=re.DOTALL|re.IGNORECASE)
+                else :
+                    verilog_code = re.sub(ifndef_pattern,match_2.group(3),verilog_code,count=1,flags=re.DOTALL|re.IGNORECASE)
+            else : 
+                verilog_code = re.sub(ifndef_pattern,match_2.group(2),verilog_code,count=1,flags=re.DOTALL|re.IGNORECASE)
+    return verilog_code
+    
 
 def extract_module(verilog_code):
-
-    module_pattern = r'module\s+(\w+)\s*(?:#\(.*?\))?\s*\((.*?\)\s*;.*?)endmodule'
+    module_pattern = r'module\s+(\w+)\s*(?:#\s*\(.*?\))?\s*\((.*?\)\s*;.*?)endmodule'
     matches = re.findall(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
     modules = []
 
@@ -30,12 +53,12 @@ def extract_module(verilog_code):
         for j in range(len(matches)) :     
             ports = []
             port_declarations = []
-            single_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)'
-            double_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            triple_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            quad_port_pattern      = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            quintuple_port_pattern = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-            sextuple_port_pattern  = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            single_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-/\*]+\])?\s*(\w+)'
+            double_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            triple_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            quad_port_pattern      = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            quintuple_port_pattern = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+            sextuple_port_pattern  = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
             single_port_declarations = re.findall( single_port_pattern, matches[j][1],re.IGNORECASE | re.DOTALL )
             double_port_declarations = re.findall( double_port_pattern, matches[j][1],re.IGNORECASE | re.DOTALL )
             triple_port_declarations = re.findall(triple_port_pattern, matches[j][1], re.IGNORECASE  | re.DOTALL)
@@ -80,10 +103,9 @@ def find_port(port_name, module_name,module_list) :
     print(f"WARNING : port {port_name} of module {module_name} is not found")
     return ['','unknow']
 
-
 def extract_submodule_list(verilog_code, module_list) :
-    sub_module_pattern = r'(?:(?:\w+)\s*#\(\s*parameter )|(\w+)\s*(?:#\((?:.*?(?:\(.*?\)\s*)*)*\))?\s*(\w+)\s*\(\s*\.(.*?)(?:\)\s*\);)'
-    signal_inst_pattern = r'\s*\.(\w+)\s*\(\s*(\w+)\s*\[.*?\]\s*\)'
+    sub_module_pattern = r'(?:(?:\w+)\s*#\s*\(\s*parameter )|(\w+)\s*(?:#\s*\((?:.*?(?:\(.*?\)\s*)*)*\))?\s*(\w+)\s*\(\s*\.(.*?)(?:\)\s*\);)'
+    signal_inst_pattern = r'\s*\.(\w+)\s*\(\s*(\w+)\s*(?:\[.*?\])?\s*\)'
 
     matches = re.findall(sub_module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
     try:
@@ -95,13 +117,12 @@ def extract_submodule_list(verilog_code, module_list) :
     for i in range (len(matches)) :
 
         module_name,module_inst,ports = matches[i][0].strip().lower(),matches[i][1].strip().lower(), matches[i][2].strip().lower()
-
         ports = '.'+ports+')'  # the first . is captured by the regex
         submodule_ports = []
         port_lines = ports.split(',')
         for line in port_lines:
-            matches_2 = re.match(signal_inst_pattern,line,re.IGNORECASE | re.DOTALL )
-            if matches_2 : 
+            matches_2 = re.search(signal_inst_pattern,line,re.IGNORECASE | re.DOTALL )
+            if matches_2 :
                 signal_full = matches_2[2]
                 port = matches_2[1]
                 signal_match = re.match(r'(\w+)', signal_full)
@@ -113,16 +134,15 @@ def extract_submodule_list(verilog_code, module_list) :
             submodule_ports ])
     return submodules_inst
 
-
 def extract_internal_signals (module_code,module_name,submodule_list):
     signals = []
     signal_declarations_full = []
-    single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    double_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    triple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quad_signal_pattern      = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quintuple_signal_pattern = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    sextuple_signal_pattern  = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
+    double_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*'
+    triple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    quad_signal_pattern      = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    quintuple_signal_pattern = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
+    sextuple_signal_pattern  = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
     single_signal_declarations = re.findall( single_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
     double_signal_declarations = re.findall( double_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
     triple_signal_declarations = re.findall(triple_signal_pattern, module_code, re.IGNORECASE  | re.DOTALL)
@@ -159,7 +179,6 @@ def extract_internal_signals (module_code,module_name,submodule_list):
         signal_declarations_full.append([sextuple_signal_declarations[i][0]+" "+sextuple_signal_declarations[i][1],sextuple_signal_declarations[i][7]])
     # Deleate empty signals
     signal_declarations = [sublist for sublist in signal_declarations_full if sublist != [' ', '']]
-
 
     for signal_type, signal_name in signal_declarations: 
         instance_scr_name = []
@@ -267,7 +286,7 @@ def convert_to_csv_string(value): # (eg : [a,b,c] => "a,b,c")
     return str(value)
 
 def write_signals_to_csv(input_file_name,output_file_path, verilog_code, module_list):
-    module_pattern =  r'module\s+(\w+)\s*(?:#\(.*?\))?\s*\((.*?)\)\s*;.*?endmodule'
+    module_pattern =  r'module\s+(\w+)\s*(?:#\s*\(.*?\))?\s*\((.*?)\)\s*;.*?endmodule'
     matches = re.findall(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
     if matches :
         for i in range(len(matches)) :   
@@ -305,49 +324,62 @@ def write_signals_to_csv(input_file_name,output_file_path, verilog_code, module_
                     convert_to_csv_string(signal[6])
                 ])
 
-def process_files_in_directory(directory_path, output_txt_path, file_extension):
+def process_files_in_directory(directory_path, output_txt_path, define_list,excluded_directories,excluded_files):
     module_list = []
     if not os.path.exists(directory_path):
         print(f"The specified directory {directory_path} does not exist.\n")
     else:
-        open(output_txt_path, 'w').close()                                                                             
-        for root, dirs, files in os.walk(directory_path):
-            dirs[:] = [d for d in dirs if d not in ['bench', 'sim', 'testbench']]   
-            for file_name in files:
-                if file_name.lower().endswith(file_extension):                                                           
-                    file_path = os.path.join(root, file_name)
-                    try:
-                        with open(file_path, "r") as file:
-                            verilog_code_full = file.read()
-                            verilog_code = remove_comments(verilog_code_full)
-                            module_list.append([file_name,extract_module(verilog_code)]) 
-                    except FileNotFoundError:
-                        print(f"Error: File '{file_path}' not found.")
-        for root, dirs, files in os.walk(directory_path):
-            dirs[:] = [d for d in dirs if d not in ['bench', 'sim', 'testbench']]   
-            # extract all modules in directory in modules
-            for file_name in files:
-                if file_name.lower().endswith(file_extension):                                                           
-                    file_path = os.path.join(root, file_name)
-                    try:
-                        with open(file_path, "r") as file:
-                            verilog_code_full = file.read()
-                            verilog_code = remove_comments(verilog_code_full)
-                            write_signals_to_csv(file_name,output_txt_path,verilog_code,module_list)
-                    except FileNotFoundError:
-                        print(f"Error: File '{file_path}' not found.")
-                             
+        try : 
+            open(output_txt_path, 'w').close()                                                                             
+            for root, dirs, files in os.walk(directory_path):
+                dirs[:] = [d for d in dirs if d not in excluded_directories]
+                files[:] = [f for f in files if f not in excluded_files]      
+                for file_name in files:
+                    if file_name.lower().endswith(".v"):                                                           
+                        file_path = os.path.join(root, file_name)
+                        try:
+                            with open(file_path, "r") as file:
+                                verilog_code_full = file.read()
+                                verilog_code = remove_comments(verilog_code_full)
+                                verilog_code = manage_define(verilog_code,define_list)
+                                module_list.append([file_name,extract_module(verilog_code)]) 
+                        except FileNotFoundError:
+                            print(f"Error: File '{file_path}' not found.")
+        except KeyboardInterrupt :
+            print (f"Module of file : {file_name} is extacted")
+        try :
+            for root, dirs, files in os.walk(directory_path):
+                dirs[:] = [d for d in dirs if d not in excluded_directories]
+                files[:] = [f for f in files if f not in excluded_files]      
+                # extract all modules in directory in modules
+                for file_name in files:
+
+                    if file_name.lower().endswith(".v"):                                                           
+                        file_path = os.path.join(root, file_name)
+                        try:
+                            with open(file_path, "r") as file:
+                                verilog_code_full = file.read()
+                                verilog_code = remove_comments(verilog_code_full)
+                                verilog_code = manage_define(verilog_code,define_list)
+                                write_signals_to_csv(file_name,output_txt_path,verilog_code,module_list)
+                        except FileNotFoundError:
+                            print(f"Error: File '{file_path}' not found.")
+        except KeyboardInterrupt :
+            print (f"Signals of file : {file_name} are extacted")          
 
         if os.path.getsize(output_txt_path) == 0 :
-            print(f"{file_extension} files was not found. Or there is simply no {file_extension} file in project.\n")
+            print(f".v files was not found. Or there is simply no .v file in project.\n")
         else :
-            print(f"{file_extension} parsing done successfully\n")    
+            print(f".v parsing done successfully\n")    
 
 
 
 # Main program
 def main():
-    from_terminal = 1 # If this option is selected, you must provide input_directory and output_file_path as arguments.
+    from_terminal = 1  # If this option is selected, you must provide input_directory and output_file_path as arguments.
+    define_list = ["XILINX_FPGA","XILINX_SPARTAN6_FPGA"]  # Put the name of defines
+    excluded_directories = ["sim"]   # Put the name of the directories, which have to be exclude
+    excluded_files = []  # Put the name of the files, which have to be exclude
     if DEBUG : 
         print('DEBUG Mode enable')
     else : 
@@ -358,14 +390,19 @@ def main():
             sys.exit(1)
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
+        if len(sys.argv) > 3 :  
+            define_list = sys.argv[3]
     else:
-        input_directory = r"..\project\Verilog\i2c_master-slave_core\i2c_master_slave_core" # modify this path 
-        output_file_path = r"..\project\Verilog\i2c_master-slave_core\i2c_master_slave_core\signals.csv" # modify this path
+        input_directory = r"..\project\Verilog\ddr2_mem_controller_for_digilent_genesys_board\rtl" # modify this path 
+        output_file_path = r"..\project\Verilog\ddr2_mem_controller_for_digilent_genesys_board\rtl\signal.csv" # modify this path
     
+    if DEBUG : 
+        print (f"Excluded_directories {excluded_directories}")
+        print (f"Excluded_files {excluded_directories}")
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
     directory_path = os.path.abspath(input_directory)
-    process_files_in_directory(directory_path,output_file_path,'.v')
+    process_files_in_directory(directory_path,output_file_path,define_list,excluded_directories,excluded_files)
 
 
 

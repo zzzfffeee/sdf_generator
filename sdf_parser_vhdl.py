@@ -16,6 +16,25 @@ def find_entity_name(vhdl_code):
     match = re.search(entity_pattern, vhdl_code, re.IGNORECASE)
     return match.group(1) if match else None
 
+def signal_type_to_size(signal_type):
+    std_logic_vector_pattern = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\d+)\s*downto\s*(\d+)\s*\)'
+    std_logic_vector_generic_pattern = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\w+)\s*-\s*1\s*downto\s*0\s*\)'
+    integer_pattern = r'integer(.*?)'
+    if (signal_type.strip().lower()=='std_logic') :
+        signal_size = '1'
+    elif(signal_type.strip().lower() == 'byte') : 
+        signal_size = '8'
+    elif (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+        signal_size = '32'
+    elif (match:=re.search(std_logic_vector_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+        signal_size = str(int(match.group(1))-int(match.group(2))+1)
+    elif (match:=re.search(std_logic_vector_generic_pattern,signal_type,re.DOTALL | re.IGNORECASE)) :
+        signal_size = match.group(1)
+    else :
+        signal_size = 'unknown' 
+        if(DEBUG) :
+            print(f'size of {signal_type} is unknown')
+    return signal_size
 
 def extract_component_ports(vhdl_code):
 
@@ -58,7 +77,8 @@ def extract_component_ports(vhdl_code):
         for port_name, direction, port_type in port_declarations:
             port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
             port_type = re.sub(r'\)\s*\)', ')', port_type) # Replace )) by )
-            port_type = re.sub(r'std_logic\s*\)', 'std_logic', port_type) # Replace std_logic) by std_logic
+            if ((re.search(r'\(',port_type)== None)&(re.search(r'\)',port_type)!=None)) : 
+                port_type = re.sub(r'\)', '', port_type)
 
             ports.append([
                 port_name.strip().lower(), 
@@ -72,7 +92,7 @@ def extract_component_ports(vhdl_code):
 
 def extract_module_ports(vhdl_code):
 
-    port_pattern = r'port\s*\((.*?)end\s+'
+    port_pattern = r'entity\s+\w+\s+is(?:.*?)port\s*\((.*?)end\s+'
     match = re.search(port_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
 
     ports = []
@@ -107,18 +127,17 @@ def extract_module_ports(vhdl_code):
             port_declarations.append([quintuple_port_declarations[i][0], quintuple_port_declarations[i][-2], quintuple_port_declarations[i][-1]])
         for i in range(len(sextuple_port_declarations)):
             port_declarations.append([sextuple_port_declarations[i][0], sextuple_port_declarations[i][-2], sextuple_port_declarations[i][-1]])
-
         for port_name, direction, port_type in port_declarations:
             port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
             port_type = re.sub(r'\)\s*\)', ')', port_type)  # Replace )) by )
-            port_type = re.sub(r'std_logic\s*\)', 'std_logic', port_type) # Replace std_logic) by std_logic
+            if ((re.search(r'\(',port_type)== None)&(re.search(r'\)',port_type)!=None)) : 
+                port_type = re.sub(r'\)', '', port_type)
 
             ports.append([
                 port_name.strip().lower(),   
                 direction.strip().lower(),  
                 port_type.strip().lower()        
             ])
-
     return ports
 
 def extract_internal_signals(vhdl_code,port_map_list, entity_name):
@@ -172,21 +191,7 @@ def extract_internal_signals(vhdl_code,port_map_list, entity_name):
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
-        std_logic_vector_pattern = r'std_logic_vector\s*\(\s*(\d+)\s*downto\s*(\d+)\s*\)'
-        std_logic_vector_generic_pattern = r'std_logic_vector\s*\(\s*(\w+)\s*-\s*1\s*downto\s*0\s*\)'
-        integer_pattern = r'integer(.*?)'
-        if ((signal_type=='std_logic')|(signal_type=='STD_LOGIC')) :
-            signal_size = '1'
-        elif (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
-            signal_size = '8'
-        elif (match:=re.search(std_logic_vector_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
-            signal_size = str(int(match.group(1))-int(match.group(2))+1)
-        elif (match:=re.search(std_logic_vector_generic_pattern,signal_type,re.DOTALL | re.IGNORECASE)) :
-            signal_size = match.group(1)
-        else :
-            signal_size = 'unknown' 
-            if(DEBUG) :
-                print(f'size of {signal_type} is unknown')
+        signal_size = signal_type_to_size(signal_type)
         for instance, component, ports  in port_map_list :
             for port in ports : 
                 if (port[1]==signal_name.strip().lower()) :
@@ -215,21 +220,7 @@ def extract_external_signals (module, port_map_list,entity_name) :
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
-        std_logic_vector_pattern = r'std_logic_vector\s*\(\s*(\d+)\s*downto\s*(\d+)\s*\)'
-        std_logic_vector_generic_pattern = r'std_logic_vector\s*\(\s*(\w+)\s*-\s*1\s*downto\s*0\s*\)'
-        integer_pattern = r'integer(.*?)'
-        if ((port[2]=='std_logic')|(port[2]=='STD_LOGIC')) :
-            signal_size = '1'
-        elif (match:=re.search(integer_pattern,port[2],re.DOTALL | re.IGNORECASE)):
-            signal_size = '32'
-        elif (match:=re.search(std_logic_vector_pattern,port[2],re.DOTALL | re.IGNORECASE)):
-            signal_size = str(int(match.group(1))-int(match.group(2))+1)
-        elif (match:=re.search(std_logic_vector_generic_pattern,port[2],re.DOTALL | re.IGNORECASE)) :
-            signal_size = match.group(1)
-        else :
-            signal_size = 'unknown' 
-            if(DEBUG) :
-                print(f'size of {port[2]} is unknown')
+        signal_size = signal_type_to_size(port[2])
         
         if((port[1] == 'in') | (port[1] == 'inout')) :
             module_src_name.append('input')
@@ -276,9 +267,8 @@ def extract_port_map(vhdl_code, component_list) :
         port_mapping = []
         port_lines = ports.split(',')
         for line in port_lines:
-            port, signal_full = [item.strip().lower() for item in line.split('=>')]
+            port, signal_full = [item.strip().lower() for item in line.split('=>',maxsplit=1)]
             signal_match = re.match(r'(\w+)', signal_full)
-
             signal = signal_match.group(1) if signal_match else signal_full
             port_mapping.append([port,signal,dir_finding(component_name.lower(),port,component_list)])
         port_maps.append([
@@ -288,6 +278,24 @@ def extract_port_map(vhdl_code, component_list) :
         ])
     return port_maps
 
+def find_package (vhdl_code,directory_path):
+    library_pattern = r'library\s*\w+\s*;\s*use\s*\w+\.(\w+)\.all;'
+    matches = re.findall(library_pattern,vhdl_code,re.DOTALL|re.IGNORECASE)
+    components=[]
+    for match in matches :
+        for root, dirs, files in os.walk(directory_path):
+                dirs[:] = [d for d in dirs if d not in ['bench', 'sim', 'testbench']]   
+                for file_name in files:
+                    if (file_name.lower()==(match.lower()+'.vhd')):
+                        file_path = os.path.join(root, file_name)
+                        try : 
+                            with open(file_path, "r") as file:
+                                vhdl_code_full = file.read()
+                                vhdl_code = remove_comments(vhdl_code_full) 
+                                components = components + extract_component_ports(vhdl_code)  
+                        except FileNotFoundError:
+                            print(f"Error: File '{file_path}' not found.")
+    return components
 
 
 def convert_to_csv_string(value): # (eg : [a,b,c] => "a,b,c")
@@ -295,33 +303,26 @@ def convert_to_csv_string(value): # (eg : [a,b,c] => "a,b,c")
         return ",".join(map(str, value))  
     return str(value)
 
-def write_signals_to_csv(input_file_name,output_file_path, vhdl_code):
-    entity_name = find_entity_name(vhdl_code)
-    module = extract_module_ports(vhdl_code)
-    component_list = extract_component_ports(vhdl_code)
-    port_map_list = extract_port_map(vhdl_code,component_list)
-    external_signals = extract_external_signals(module,port_map_list, entity_name)
-    internal_signals = extract_internal_signals(vhdl_code,port_map_list, entity_name)
-    with open(output_file_path, mode='a', newline='') as file_csv:
-        writer = csv.writer(file_csv)
-        writer = csv.writer(file_csv,delimiter= ';')
-        writer.writerow([f"file_name({input_file_name})"])
-        writer.writerow(["component", "signal_name", "type", "size","instance src", "component_src", "instance_dst", "component_dst"])
-        
-        for signal in external_signals:
-            writer.writerow([
-            entity_name,
-            signal[0],
-            signal[1],
-            signal[2],
-            convert_to_csv_string(signal[3]),
-            convert_to_csv_string(signal[4]),
-            convert_to_csv_string(signal[5]),
-            convert_to_csv_string(signal[6])
-        ])
-        for signal in internal_signals:
-            writer.writerow([
-                "Internal",
+def write_signals_to_csv(input_file_name,output_file_path, vhdl_code,components_list_extended):
+    if (find_entity_name(vhdl_code)==None) :
+        if(DEBUG) :
+            print(f"Warning : No entity found in {input_file_name}")
+    else :
+        entity_name = find_entity_name(vhdl_code)
+        component_list = extract_component_ports(vhdl_code)+components_list_extended
+        module = extract_module_ports(vhdl_code)
+        port_map_list = extract_port_map(vhdl_code,component_list)
+        external_signals = extract_external_signals(module,port_map_list, entity_name)
+        internal_signals = extract_internal_signals(vhdl_code,port_map_list, entity_name)
+        with open(output_file_path, mode='a', newline='') as file_csv:
+            writer = csv.writer(file_csv)
+            writer = csv.writer(file_csv,delimiter= ';')
+            writer.writerow([f"file_name({input_file_name})"])
+            writer.writerow(["component", "signal_name", "type", "size","instance src", "component_src", "instance_dst", "component_dst"])
+            
+            for signal in external_signals:
+                writer.writerow([
+                entity_name,
                 signal[0],
                 signal[1],
                 signal[2],
@@ -330,6 +331,17 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code):
                 convert_to_csv_string(signal[5]),
                 convert_to_csv_string(signal[6])
             ])
+            for signal in internal_signals:
+                writer.writerow([
+                    "Internal",
+                    signal[0],
+                    signal[1],
+                    signal[2],
+                    convert_to_csv_string(signal[3]),
+                    convert_to_csv_string(signal[4]),
+                    convert_to_csv_string(signal[5]),
+                    convert_to_csv_string(signal[6])
+                ])
 
         
 def extract (input_file_name,input_file_path,output_file_path) : 
@@ -342,29 +354,39 @@ def extract (input_file_name,input_file_path,output_file_path) :
     except FileNotFoundError:
         print(f"Error: File '{input_file_path}' not found.")
 
-def process_files_in_directory(directory_path, output_txt_path, file_extension, extract):
+def process_files_in_directory(directory_path, output_txt_path, excluded_directories,excluded_files):
     if not os.path.exists(directory_path):
         print(f"The specified directory {directory_path} does not exist.\n")
     else:
         open(output_txt_path, 'w').close()                                                                             
         for root, dirs, files in os.walk(directory_path):
-            dirs[:] = [d for d in dirs if d not in ['bench', 'sim', 'testbench']]   
+            dirs[:] = [d for d in dirs if d not in excluded_directories]
+            files[:] = [f for f in files if f not in excluded_files]     
             for file_name in files:
-                if file_name.lower().endswith(file_extension):                                                           
+                if file_name.lower().endswith('.vhd'):                                                           
                     file_path = os.path.join(root, file_name)
-                    extract(file_name,file_path,output_txt_path)                                            
+                    try:
+                        with open(file_path, "r") as file:
+                            vhdl_code_full = file.read()
+                            vhdl_code = remove_comments(vhdl_code_full)
+                            components_list_extended = find_package(vhdl_code,directory_path)
+                            write_signals_to_csv(file_name,output_txt_path, vhdl_code,components_list_extended) 
+                    except FileNotFoundError:
+                        print(f"Error: File '{file_path}' not found.")
+                                            
 
         if os.path.getsize(output_txt_path) == 0 :
-            print(f"{file_extension} files was not found. Or there is simply no {file_extension} file in project.\n")
+            print(f".vhd files was not found. Or there is simply no .vhd file in project.\n")
         else :
-            print(f"{file_extension} parsing done successfully\n")    
+            print(f".vhd parsing done successfully\n")    
 
 
 # Main program
 def main():
 
-    from_terminal = 1 # If this option is selected, you must provide input_directory and output_file_path as arguments.
-    
+    from_terminal = 0 # If this option is selected, you must provide input_directory and output_file_path as arguments.
+    excluded_directories = []   # Put the name of the directories, which have to be exclude
+    excluded_files = []  # Put the name of the files, which have to be exclude
     if DEBUG : 
         print('DEBUG Mode enable')
     else : 
@@ -377,13 +399,16 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"..\project\VHDL\communication_controller_i2s_to_paralell_adc-dac_controller" # modify this path 
-        output_file_path = r"..\project\VHDL\communication_controller_i2s_to_paralell_adc-dac_controller\signals.csv" # modify this path
+        input_directory = r"..\project\VHDL\aes_corrected_and_add_sdf_normalized" # modify this path 
+        output_file_path = r"..\project\VHDL\aes_corrected_and_add_sdf_normalized\signals.csv" # modify this path
     
+    if DEBUG : 
+        print (f"Excluded_directories {excluded_directories}")
+        print (f"Excluded_files {excluded_directories}")
     print(f"Input Directory: {input_directory}")
     print(f"Output File Path: {output_file_path}")   
     directory_path = os.path.abspath(input_directory)
-    process_files_in_directory(directory_path,output_file_path,'.vhd',extract)
+    process_files_in_directory(directory_path,output_file_path,excluded_directories,excluded_files)
         
 
 
