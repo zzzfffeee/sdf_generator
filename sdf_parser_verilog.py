@@ -3,7 +3,7 @@ import csv
 import os
 import sys
 
-DEBUG = False
+DEBUG = True
 
 def remove_comments(verilog_code):                                                            
     verilog_code = re.sub(r'//.*', '', verilog_code)                                                
@@ -16,6 +16,36 @@ def find_module_name(verilog_code):
     module_pattern = r'module\s*(\w+)'  # Recherche le mot-clé "module" suivi du nom
     match = re.search(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
     return match.group(1) if match else None
+
+def find_modules(verilog_code):
+    module_pattern =  r'(module\s+(\w+)\s*(?:#\s*\(.*?\))?\s*\((.*?\)\s*;.*?)endmodule)'
+    matches = re.findall(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
+    if matches :
+        return [(match[1], match[0]) for match in matches]
+    return 0
+        
+        
+def size_of_signal(signal_type):
+    size_pattern = r'\[\s*(\d+)\s*(?:-\s*(\d+))?\s*:\s*(\d+)\s*\]'
+    size_pattern_generic = r'\[\s*(\w+)\s*(?:-\s*(\d+))?\s*(?:-\s*(\d+))?\s*:\s*(\d+)\s*\]'
+    integer_pattern = r'integer(.*?)'
+    if (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+        signal_size = '32'
+    elif (match:=re.search(size_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+        signal_size = str(int(match.group(1))-(int(match.group(2)) if match.group(2) is not None else 0)-int(match.group(3))+1)
+    elif (match:=re.search(size_pattern_generic,signal_type,re.DOTALL | re.IGNORECASE)) :
+        if((-(int(match.group(2)) if match.group(2) is not None else 0)-(int(match.group(3)) if match.group(3) is not None else 0)+1-int(match.group(4)))==0) :
+            signal_size = match.group(1)
+        else : 
+            signal_size = match.group(1)+str(1-(int(match.group(2)) if match.group(2) is not None else 0)-(int(match.group(3)) if match.group(3) is not None else 0)-int(match.group(4)))
+    elif ((signal_type.strip().lower()=='wire')|(signal_type.strip().lower()=='reg')) :
+        signal_size = '1'
+    else :
+        signal_size = 'unknown'
+        if(DEBUG == True) :
+            print(f'size of {signal_type} is unknown')  
+    return signal_size
+
 
 def manage_define(verilog_code,define_list) :
     pattern_clean = r"^`(?!ifdef|ifndef|else|include)\w.*"
@@ -185,24 +215,7 @@ def extract_internal_signals (module_code,module_name,submodule_list):
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
-        size_pattern = r'\[\s*(\d+)\s*:\s*(\d+)\s*\]'
-        size_pattern_generic = r'\[\s*(\w+)\s*(-\s*1)?\s*:\s*(\d+)\s*\]'
-        integer_pattern = r'integer(.*?)'
-        if (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
-            signal_size = '32'
-        elif (match:=re.search(size_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
-            signal_size = str(int(match.group(1))-int(match.group(2))+1)
-        elif (match:=re.search(size_pattern_generic,signal_type,re.DOTALL | re.IGNORECASE)) :
-            if((-(match.group(2)!=None)+1-int(match.group(3)))==0) :
-                signal_size = match.group(1)
-            else : 
-                signal_size = match.group(1)+str(-(match.group(2)!=None)+1-int(match.group(3)))
-        elif ((signal_type.strip().lower()=='wire')|(signal_type.strip().lower()=='reg')) :
-            signal_size = '1'
-        else :
-            signal_size = 'unknown'
-            if(DEBUG == True) :
-                print(f'size of {signal_type} is unknown')
+        signal_size = size_of_signal(signal_type)
 
         for instance, submodule, ports  in submodule_list :
             for port in ports : 
@@ -237,24 +250,7 @@ def extract_external_signals (module_code,module_list,module_name,submodule_list
         instance_dst_name = []
         module_dst_name = []
         module_src_name = []
-        size_pattern = r'\[\s*(\d+)\s*:\s*(\d+)\s*\]'
-        size_pattern_generic = r'\[\s*(\w+)\s*(-\s*1)?\s*:\s*(\d+)\s*\]'
-        integer_pattern = r'integer(.*?)'
-        if (match:=re.search(integer_pattern,port[2],re.DOTALL | re.IGNORECASE)):
-            signal_size = '32'
-        elif (match:=re.search(size_pattern,port[2],re.DOTALL | re.IGNORECASE)):
-            signal_size = str(int(match.group(1))-int(match.group(2))+1)
-        elif (match:=re.search(size_pattern_generic,port[2],re.DOTALL | re.IGNORECASE)) :
-            if((-(match.group(2)!=None)+1-int(match.group(3)))==0) :
-                signal_size = match.group(1)
-            else : 
-                signal_size = match.group(1)+str(1-(match.group(2)!=None)-int(match.group(3)))
-        elif ((port[2].strip().lower()=='wire')|(port[2].strip().lower()=='reg')) :
-            signal_size = '1'
-        else :
-            signal_size = 'unknown'
-            if(DEBUG == True) :
-                print(f'size of {port[2]} is unknown')
+        signal_size=size_of_signal(port[2])
         if((port[1] == 'input') | (port[1] == 'inout')) :
             module_src_name.append('input')
             instance_scr_name.append('input')
@@ -286,43 +282,38 @@ def convert_to_csv_string(value): # (eg : [a,b,c] => "a,b,c")
     return str(value)
 
 def write_signals_to_csv(input_file_name,output_file_path, verilog_code, module_list):
-    module_pattern =  r'module\s+(\w+)\s*(?:#\s*\(.*?\))?\s*\((.*?)\)\s*;.*?endmodule'
-    matches = re.findall(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
-    if matches :
-        for i in range(len(matches)) :   
-            module_name = matches[i][0]
-            module_code = matches [i][1]
-            submodule_list = extract_submodule_list(verilog_code,module_list)
-            internal_signals = extract_internal_signals(verilog_code,module_name,submodule_list)
-            external_signals = extract_external_signals(verilog_code,module_list,module_name,submodule_list)
-        with open(output_file_path, mode='a', newline='') as file_csv:
-            writer = csv.writer(file_csv)
-            writer = csv.writer(file_csv,delimiter= ';')
-            writer.writerow([f"file_name({input_file_name})"])
-            writer.writerow(["component", "signal_name", "type", "size","instance src", "component_src", "instance_dst", "component_dst"])
-    
-            for signal in external_signals:
-                writer.writerow([
-                module_name,
-                signal[0],
-                signal[1],
-                signal[2],
-                convert_to_csv_string(signal[3]),
-                convert_to_csv_string(signal[4]),
-                convert_to_csv_string(signal[5]),
-                convert_to_csv_string(signal[6])
-            ])
-            for signal in internal_signals:
-                writer.writerow([
-                    "Internal",
-                    signal[0],
-                    signal[1],
-                    signal[2],
-                    convert_to_csv_string(signal[3]),
-                    convert_to_csv_string(signal[4]),
-                    convert_to_csv_string(signal[5]),
-                    convert_to_csv_string(signal[6])
-                ])
+        if find_modules(verilog_code):
+            with open(output_file_path, mode='a', newline='') as file_csv:
+                writer = csv.writer(file_csv)
+                writer = csv.writer(file_csv,delimiter= ';')
+                writer.writerow([f"file_name({input_file_name})"])
+                writer.writerow(["component", "signal_name", "type", "size","instance src", "component_src", "instance_dst", "component_dst"])
+                for module_name,module_code in find_modules(verilog_code) :
+                    submodule_list = extract_submodule_list(module_code,module_list)
+                    internal_signals = extract_internal_signals(module_code,module_name,submodule_list)
+                    external_signals = extract_external_signals(module_code,module_list,module_name,submodule_list)
+                    for signal in external_signals:
+                        writer.writerow([
+                        module_name,
+                        signal[0],
+                        signal[1],
+                        signal[2],
+                        convert_to_csv_string(signal[3]),
+                        convert_to_csv_string(signal[4]),
+                        convert_to_csv_string(signal[5]),
+                        convert_to_csv_string(signal[6])
+                    ])
+                    for signal in internal_signals:
+                        writer.writerow([
+                            "Internal",
+                            signal[0],
+                            signal[1],
+                            signal[2],
+                            convert_to_csv_string(signal[3]),
+                            convert_to_csv_string(signal[4]),
+                            convert_to_csv_string(signal[5]),
+                            convert_to_csv_string(signal[6])
+                        ])
 
 def process_files_in_directory(directory_path, output_txt_path, define_list,excluded_directories,excluded_files):
     module_list = []
@@ -342,7 +333,9 @@ def process_files_in_directory(directory_path, output_txt_path, define_list,excl
                                 verilog_code_full = file.read()
                                 verilog_code = remove_comments(verilog_code_full)
                                 verilog_code = manage_define(verilog_code,define_list)
-                                module_list.append([file_name,extract_module(verilog_code)]) 
+                                if find_modules(verilog_code):
+                                    for module_name,module_code in find_modules(verilog_code) :
+                                        module_list.append([file_name,extract_module(module_code)]) 
                         except FileNotFoundError:
                             print(f"Error: File '{file_path}' not found.")
         except KeyboardInterrupt :
@@ -393,8 +386,8 @@ def main():
         if len(sys.argv) > 3 :  
             define_list = sys.argv[3]
     else:
-        input_directory = r"..\project\Verilog\ddr2_mem_controller_for_digilent_genesys_board\rtl" # modify this path 
-        output_file_path = r"..\project\Verilog\ddr2_mem_controller_for_digilent_genesys_board\rtl\signal.csv" # modify this path
+        input_directory = r"..\project\Verilog\hpdmc_corrected_and_add_sdf_normalized" # modify this path 
+        output_file_path = r"..\project\Verilog\hpdmc_corrected_and_add_sdf_normalized\signal_2.csv" # modify this path
     
     if DEBUG : 
         print (f"Excluded_directories {excluded_directories}")
