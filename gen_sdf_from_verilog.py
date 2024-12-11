@@ -27,7 +27,7 @@ def find_modules(verilog_code):
         
 def size_of_signal(signal_type):
     size_pattern = r'\[\s*(\d+)\s*(?:-\s*(\d+))?\s*:\s*(\d+)\s*\]'
-    size_pattern_generic = r'\[\s*(\w+)\s*(?:-\s*(\d+))?\s*(?:-\s*(\d+))?\s*:\s*(\d+)\s*\]'
+    size_pattern_generic = r'\[\s*((?:\w+)|(?:\(.*?\)))\s*(?:-\s*(\d+))?\s*(?:-\s*(\d+))?\s*:\s*(\d+)\s*\]'
     integer_pattern = r'integer(.*?)'
     if (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
         signal_size = '32'
@@ -370,7 +370,7 @@ def process_files_in_directory(directory_path, output_txt_path, define_list,excl
 # Main program
 def main():
     from_terminal = 1  # If this option is selected, you must provide input_directory and output_file_path as arguments.
-    define_list = ["XILINX_FPGA","XILINX_SPARTAN6_FPGA"]  # Put the name of defines
+    define_list = []  # Put the name of defines
     excluded_directories = ["sim"]   # Put the name of the directories, which have to be exclude
     excluded_files = []  # Put the name of the files, which have to be exclude
     if DEBUG : 
@@ -386,8 +386,8 @@ def main():
         if len(sys.argv) > 3 :  
             define_list = sys.argv[3]
     else:
-        input_directory = r"..\project\Verilog\hpdmc_corrected_and_add_sdf_normalized" # modify this path 
-        output_file_path = r"..\project\Verilog\hpdmc_corrected_and_add_sdf_normalized\signal_2.csv" # modify this path
+        input_directory = r"..\project\Verilog\ddr2_mem_controller_for_digilent_genesys_board\rtl" # modify this path 
+        output_file_path = r"..\project\Verilog\ddr2_mem_controller_for_digilent_genesys_board\rtl\signal.csv" # modify this path
     
     if DEBUG : 
         print (f"Excluded_directories {excluded_directories}")
