@@ -5,20 +5,23 @@ import sys
 
 DEBUG = True
 
+## Efface les commentaires dans le code vhdl pour ne pas perturber le fonctionnement des regex
 def remove_comments(vhdl_code):                                                            
     code = re.sub(r'--.*', '', vhdl_code)
     return code
 
-
+## Renvoi le nom de l'entity à partir d'un code vhdl
 def find_entity_name(vhdl_code):
-    """Find the name of the entity."""
     entity_pattern = r'\bentity\s+(\w+)\s+is\b'
     match = re.search(entity_pattern, vhdl_code, re.IGNORECASE)
     return match.group(1) if match else None
 
+
+## Revoi la taille du signal en bit à partir du signal_type pour lorsque le nom du générique est présent dans le signal_type, il n'est pas remplacé par la valeur qui lui est assignée 
 def signal_type_to_size(signal_type):
-    std_logic_vector_pattern = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\d+)\s*downto\s*(\d+)\s*\)'
-    std_logic_vector_generic_pattern = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\w+)\s*-\s*1\s*downto\s*0\s*\)'
+    size_pattern = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\d+)\s*(?:-\s*(\d+))?\s*downto\s*(\d+)\s*\)'
+    size_pattern_generic = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*((?:\w+)|(?:\(.*?\)))\s*(?:-\s*(\d+))?\s*(?:-\s*(\d+))?\s*downto\s*(\d+)\s*\)'
+    size_pattern_range = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\w+)\'range\s*\)'
     integer_pattern = r'integer(.*?)'
     if (signal_type.strip().lower()=='std_logic') :
         signal_size = '1'
@@ -26,15 +29,24 @@ def signal_type_to_size(signal_type):
         signal_size = '8'
     elif (match:=re.search(integer_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
         signal_size = '32'
-    elif (match:=re.search(std_logic_vector_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
-        signal_size = str(int(match.group(1))-int(match.group(2))+1)
-    elif (match:=re.search(std_logic_vector_generic_pattern,signal_type,re.DOTALL | re.IGNORECASE)) :
-        signal_size = match.group(1)
+    elif (match:=re.search(size_pattern,signal_type,re.DOTALL | re.IGNORECASE)):
+        signal_size = str(int(match.group(1))-(int(match.group(2)) if match.group(2) is not None else 0)-int(match.group(3))+1)
+    elif (match:=re.search(size_pattern_generic,signal_type,re.DOTALL | re.IGNORECASE)) :
+        if((-(int(match.group(2)) if match.group(2) is not None else 0)-(int(match.group(3)) if match.group(3) is not None else 0)+1-int(match.group(4)))==0) :
+            signal_size = match.group(1)
+        else : 
+            signal_size = match.group(1)+str(1-(int(match.group(2)) if match.group(2) is not None else 0)-(int(match.group(3)) if match.group(3) is not None else 0)-int(match.group(4)))
+    elif(match:=re.search(size_pattern_range,signal_type,re.DOTALL | re.IGNORECASE)) :
+        signal_size = f"{match.group(1)} size"
     else :
         signal_size = 'unknown' 
         if(DEBUG) :
+            ## Lorsque le mode debug est activé
             print(f'size of {signal_type} is unknown')
     return signal_size
+
+def extract_process(vhdl_code) : 
+    process_pattern = r'(?:(\w+)\s*\:)?\s*\bprocess\b(.*?)'
 
 def extract_component_ports(vhdl_code):
 
@@ -48,12 +60,12 @@ def extract_component_ports(vhdl_code):
         component = [component_name.strip().lower()]
         ports=[]
         port_declarations = []
-        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
+        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
+        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
+        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
+        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
+        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
         single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
         double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
         triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
@@ -101,12 +113,12 @@ def extract_module_ports(vhdl_code):
         port_declarations = []
         
         port_lines = match.group(1)
-        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\)\;)\s*'
-        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
-        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*(?:\s*;|\s*\))\s*'
+        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
+        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
+        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
+        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
+        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
+        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
         single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
         double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
         triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
@@ -142,12 +154,12 @@ def extract_module_ports(vhdl_code):
 
 def extract_internal_signals(vhdl_code,port_map_list, entity_name):
 
-    signal_pattern = r'signal\s+(\w+)\s*:\s*([\w\s\(\)-]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;?'
-    double_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)-]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;?'
-    triple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)-]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;?'
-    quad_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)-]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;?'
-    quintuple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)-]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;?'
-    sextuple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)-]+(?:\s*\(\w+\s*[-+]?\s*\d+\s*downto\s*\d+\))?)\s*;?'
+    signal_pattern = r'signal\s+(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
+    double_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
+    triple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
+    quad_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
+    quintuple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
+    sextuple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
 
     signals = []
     
@@ -211,7 +223,6 @@ def extract_internal_signals(vhdl_code,port_map_list, entity_name):
         signals.append([signal_name.strip().lower(), signal_type.strip().lower(),signal_size.strip().lower(),instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     
     return signals
-
 
 def extract_external_signals (module, port_map_list,entity_name) :
     signals = []
@@ -398,8 +409,8 @@ def main():
         input_directory = sys.argv[1]
         output_file_path = sys.argv[2]
     else:
-        input_directory = r"..\project\VHDL\hpdmc_corrected_and_add_sdf_normalized" # modify this path 
-        output_file_path = r"..\project\VHDL\hpdmc_corrected_and_add_sdf_normalized\signals.csv" # modify this path
+        input_directory = r"C:\repo\genai_fpga\Datasets\AssertLLM_dataset\Dataset_incomplet\missing_signal_definition_file_done\rtl\lxp32_corrected_and_add_sdf_normalized" # modify this path 
+        output_file_path = r"C:\repo\genai_fpga\Datasets\AssertLLM_dataset\Dataset_incomplet\missing_signal_definition_file_done\rtl\lxp32_corrected_and_add_sdf_normalized\signals_2.csv" # modify this path
     
     if DEBUG : 
         print (f"Excluded_directories {excluded_directories}")
