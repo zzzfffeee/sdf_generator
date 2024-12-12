@@ -1,0 +1,5 @@
+input_directory = "C:\repo\genai_fpga\Datasets\AssertLLM_dataset\Dataset_incomplet\missing_signal_definition_file_done\rtl\amber_corrected_and_add_sdf_normalized"
+output_file = "C:\repo\genai_fpga\Datasets\AssertLLM_dataset\Dataset_incomplet\missing_signal_definition_file_done\rtl\amber_corrected_and_add_sdf_normalized\signal.csv"
+excluded_directories = sim,tb
+excluded_files = excluded_file_name.v
+define_list = XILINX_SPARTAN6_FPGA,XILINX_FPGA,ETH_BIST

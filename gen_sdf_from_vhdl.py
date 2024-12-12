@@ -4,7 +4,44 @@ import os
 import sys
 
 DEBUG = True
+warnings_set = set() # Stockage des warnings déjà signalés
 
+default_config_file = r".\config_vhdl.txt"
+
+## Print les warning sans jamais écrire deux fois le même
+def log_warning(message):
+    global warnings_set
+    if message not in warnings_set:
+        print(f"WARNING : {message}")
+        warnings_set.add(message)  
+
+## Modifie la configuration config = (input_directory, output_file, excluded_directories,excluded_files,define_list) à partir du contenue de config_file.txt
+def extract_config(config_file,config) :
+    if not os.path.exists(config_file):
+        return config  # Retourne la config d'origine si le fichier n'as pas été trouvé
+    input_directory, output_file, excluded_directories, excluded_files = config
+    with open(config_file, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            line=line.strip()
+            if line.startswith("input_directory ="):
+                value = line.split("=")[1].strip().strip('"')
+                if not input_directory:  
+                    input_directory = value
+            elif line.startswith("output_file ="):
+                value = line.split("=")[1].strip().strip('"')
+                if not output_file:  
+                    output_file = value
+            elif line.startswith("excluded_directories ="):
+                value = line.split("=")[1].strip().strip('"')
+                if not excluded_directories:  
+                    excluded_directories = value.split(',')
+            elif line.startswith("excluded_files ="):
+                value = line.split("=")[1].strip().strip('"')
+                if not excluded_files: 
+                    excluded_files = value.split(',')
+        return input_directory, output_file, excluded_directories, excluded_files
+    
 ## Efface les commentaires dans le code vhdl pour ne pas perturber le fonctionnement des regex
 def remove_comments(vhdl_code):                                                            
     code = re.sub(r'--.*', '', vhdl_code)
@@ -17,13 +54,13 @@ def find_entity_name(vhdl_code):
     return match.group(1) if match else None
 
 
-## Revoi la taille du signal en bit à partir du signal_type pour lorsque le nom du générique est présent dans le signal_type, il n'est pas remplacé par la valeur qui lui est assignée 
+## Revoi la taille du signal en bit à partir du signal_type (rq : lorsque le nom du générique est présent dans le signal_type, il n'est pas remplacé par la valeur qui lui est assignée) 
 def signal_type_to_size(signal_type):
     size_pattern = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\d+)\s*(?:-\s*(\d+))?\s*downto\s*(\d+)\s*\)'
     size_pattern_generic = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*((?:\w+)|(?:\(.*?\)))\s*(?:-\s*(\d+))?\s*(?:-\s*(\d+))?\s*downto\s*(\d+)\s*\)'
     size_pattern_range = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\w+)\'range\s*\)'
     integer_pattern = r'integer(.*?)'
-    if (signal_type.strip().lower()=='std_logic') :
+    if ((signal_type.strip().lower()=='std_logic')|(signal_type.strip().lower()=='std_ulogic')) :
         signal_size = '1'
     elif(signal_type.strip().lower() == 'byte') : 
         signal_size = '8'
@@ -42,11 +79,40 @@ def signal_type_to_size(signal_type):
         signal_size = 'unknown' 
         if(DEBUG) :
             ## Lorsque le mode debug est activé
-            print(f'size of {signal_type} is unknown')
+            log_warning(f'size of {signal_type} is unknown')
     return signal_size
 
+## Renvoi la liste des fonctions chaque éléments contient le nom de la fonction et le code de la fonction 
 def extract_process(vhdl_code) : 
-    process_pattern = r'(?:(\w+)\s*\:)?\s*\bprocess\b(.*?)'
+    process_pattern = r'((?:(\w+)\s*:)?\s*process .*? is.*?(?:end\s*(?:process|\2)\s*;))'
+    matches = re.findall(process_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
+    process_list =[]
+    for i in range(len(matches)) : 
+        process_list.append(["process "+matches[i][1],matches[i][0]])
+    return process_list
+
+## Renvoi la liste des fonctions chaque éléments contient le nom de la fonction et le code de la fonction 
+def extract_functions(vhdl_code) : 
+    function_pattern = r'(function\s*(\w+).*?(?:end\s*(?:function|\2))\s*;)'
+    matches = re.findall(function_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
+    function_list =[]
+    for i in range(len(matches)) : 
+        function_list.append(["function "+matches[i][1],matches[i][0]])
+    return function_list
+
+# retourne la liste avec [nom_variable,type_variable,size_variable,nom du process fonction instance]
+def extract_variables(list) :
+    variable_pattern = r'variable\s*(\w+)\s*:\s*([\w\s\(\)\'\+\-]+);?'
+    variables = []
+    for i in range(len(list)) :
+        matches = re.findall(variable_pattern,list[i][1],re.DOTALL|re.IGNORECASE)
+        for j in range(len(matches)) :
+            variables.append([matches[j][0],matches[j][1],signal_type_to_size(matches[j][1]),list[i][0]])
+    return variables
+                         
+
+
+
 
 def extract_component_ports(vhdl_code):
 
@@ -102,16 +168,15 @@ def extract_component_ports(vhdl_code):
 
     return components
 
+## Renvoi la liste des ports [nom_port_1,direction(in/out/inout),type],[nom_port_2,direction(in/out/inout),type],...]
 def extract_module_ports(vhdl_code):
 
     port_pattern = r'entity\s+\w+\s+is(?:.*?)port\s*\((.*?)end\s+'
     match = re.search(port_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
 
     ports = []
-
     if match:
         port_declarations = []
-        
         port_lines = match.group(1)
         single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
         double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
@@ -125,8 +190,6 @@ def extract_module_ports(vhdl_code):
         quad_port_declarations   = re.findall(quad_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
         quintuple_port_declarations = re.findall(quintuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
         sextuple_port_declarations = re.findall(sextuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
-        
-
         for i in range(len(single_port_declarations)) :
             port_declarations.append(single_port_declarations[i])
         for i in range(len(double_port_declarations)) : 
@@ -144,7 +207,6 @@ def extract_module_ports(vhdl_code):
             port_type = re.sub(r'\)\s*\)', ')', port_type)  # Replace )) by )
             if ((re.search(r'\(',port_type)== None)&(re.search(r'\)',port_type)!=None)) : 
                 port_type = re.sub(r'\)', '', port_type)
-
             ports.append([
                 port_name.strip().lower(),   
                 direction.strip().lower(),  
@@ -152,6 +214,8 @@ def extract_module_ports(vhdl_code):
             ])
     return ports
 
+
+# Extrait les signaux internes pour chaque section de code de module
 def extract_internal_signals(vhdl_code,port_map_list, entity_name):
 
     signal_pattern = r'signal\s+(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
@@ -224,6 +288,7 @@ def extract_internal_signals(vhdl_code,port_map_list, entity_name):
     
     return signals
 
+# Extrait les signaux provennant des ports du module pour chaque section de code de module
 def extract_external_signals (module, port_map_list,entity_name) :
     signals = []
     for port in module :
@@ -258,7 +323,7 @@ def extract_external_signals (module, port_map_list,entity_name) :
         signals.append([port[0], port[2],signal_size,instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     return signals 
         
-
+# Retourne la direction d'un port (in/out/inout)
 def dir_finding(component_name,port_name,component_list) : 
     for component_name_i, ports in component_list : 
         if (component_name_i==component_name) : 
@@ -325,6 +390,7 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code,components_
         port_map_list = extract_port_map(vhdl_code,component_list)
         external_signals = extract_external_signals(module,port_map_list, entity_name)
         internal_signals = extract_internal_signals(vhdl_code,port_map_list, entity_name)
+        variables = extract_variables(extract_functions(vhdl_code)+extract_process(vhdl_code))
         with open(output_file_path, mode='a', newline='') as file_csv:
             writer = csv.writer(file_csv)
             writer = csv.writer(file_csv,delimiter= ';')
@@ -352,6 +418,17 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code,components_
                     convert_to_csv_string(signal[4]),
                     convert_to_csv_string(signal[5]),
                     convert_to_csv_string(signal[6])
+                ])
+            for variable in variables : 
+                writer.writerow([
+                    "Variable",
+                    variable[0],
+                    variable[1],
+                    variable[2],
+                    variable[3],
+                    variable[3],
+                    variable[3],
+                    variable[3]
                 ])
 
         
@@ -393,32 +470,35 @@ def process_files_in_directory(directory_path, output_txt_path, excluded_directo
 
 # Main program
 def main():
-
-    from_terminal = 0 # If this option is selected, you must provide input_directory and output_file_path as arguments.
-    excluded_directories = []   # Put the name of the directories, which have to be exclude
-    excluded_files = []  # Put the name of the files, which have to be exclude
+    config = (0,0,[],[])
     if DEBUG : 
         print('DEBUG Mode enable')
     else : 
         print('DEBUG Mode disable')
-    
-    if from_terminal == 1:
-        if len(sys.argv) != 3:
-            print("Usage: python prog.py <input_directory> <output_file_path>")
-            sys.exit(1)
-        input_directory = sys.argv[1]
-        output_file_path = sys.argv[2]
-    else:
-        input_directory = r"C:\repo\genai_fpga\Datasets\AssertLLM_dataset\Dataset_incomplet\missing_signal_definition_file_done\rtl\lxp32_corrected_and_add_sdf_normalized" # modify this path 
-        output_file_path = r"C:\repo\genai_fpga\Datasets\AssertLLM_dataset\Dataset_incomplet\missing_signal_definition_file_done\rtl\lxp32_corrected_and_add_sdf_normalized\signals_2.csv" # modify this path
-    
-    if DEBUG : 
-        print (f"Excluded_directories {excluded_directories}")
-        print (f"Excluded_files {excluded_directories}")
+    if len(sys.argv) > 1 :
+        for arg in sys.argv :
+            if arg.endswith(".txt") :
+                print (f"Config file : {arg}")
+                config=extract_config(arg,config)
+        input_directory,output_file,excluded_directories,excluded_files=config
+        for arg in sys.argv :
+            if arg.endswith(".csv") :
+                output_file=arg
+        for arg in sys.argv : 
+            if not (arg.endswith(".txt")|arg.endswith(".csv")|arg.endswith(".py")) :
+                input_directory = arg
+        config = (input_directory,output_file,excluded_directories,excluded_files)
+    input_directory,output_file,excluded_directories,excluded_files=extract_config(default_config_file,config)
+    if input_directory == 0 : 
+        print ("Put input_directory_file on argument")
+        sys.exit(1)
+    elif (output_file == 0) :
+        output_file = input_directory+r"\sdf.csv"
     print(f"Input Directory: {input_directory}")
-    print(f"Output File Path: {output_file_path}")   
-    directory_path = os.path.abspath(input_directory)
-    process_files_in_directory(directory_path,output_file_path,excluded_directories,excluded_files)
+    print(f"Output File Path: {output_file}")
+    print (f"Excluded_directories {excluded_directories}")
+    print (f"Excluded_files {excluded_files}")   
+    process_files_in_directory(input_directory,output_file,excluded_directories,excluded_files)
         
 
 
