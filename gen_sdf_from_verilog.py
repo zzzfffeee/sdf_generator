@@ -293,7 +293,7 @@ def extract_external_signals (module_list,module_name,submodule_list) :
         if (module_list[i][1][0]==module_name.strip().lower()) :
             module = module_list[i][1][1]
     if (module==[]) :
-        print (f'module {module_name} is not found')
+        log_warning(f'module {module_name} is not found')
     for port in module :
         instance_scr_name = []
         instance_dst_name = []
