@@ -128,30 +128,12 @@ def extract_module(module_name, module_code):
     ports = []
     port_declarations = []
     single_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+)'
-    double_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    triple_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quad_port_pattern      = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quintuple_port_pattern = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    sextuple_port_pattern  = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    single_port_declarations = re.findall( single_port_pattern, module_code ,re.IGNORECASE | re.DOTALL )
-    double_port_declarations = re.findall( double_port_pattern,module_code ,re.IGNORECASE | re.DOTALL )
-    triple_port_declarations = re.findall(triple_port_pattern, module_code , re.IGNORECASE  | re.DOTALL)
-    quad_port_declarations   = re.findall(quad_port_pattern, module_code, re.IGNORECASE  | re.DOTALL)
-    quintuple_port_declarations = re.findall(quintuple_port_pattern, module_code , re.IGNORECASE | re.DOTALL)
-    sextuple_port_declarations = re.findall(sextuple_port_pattern, module_code, re.IGNORECASE | re.DOTALL)
-        
-    for i in range(len(single_port_declarations)) :
-        port_declarations.append([single_port_declarations[i][0],single_port_declarations[i][1].strip()+" "+single_port_declarations[i][2],single_port_declarations[i][3]])
-    for i in range(len(double_port_declarations)) : 
-        port_declarations.append([double_port_declarations[i][0],double_port_declarations[i][1].strip()+" "+double_port_declarations[i][2],double_port_declarations[i][4]])
-    for i in range(len(triple_port_declarations)) : 
-        port_declarations.append([triple_port_declarations[i][0],triple_port_declarations[i][1].strip()+" "+triple_port_declarations[i][2],triple_port_declarations[i][5]])
-    for i in range(len(quad_port_declarations)) : 
-        port_declarations.append([quad_port_declarations[i][0],quad_port_declarations[i][1].strip()+" "+quad_port_declarations[i][2],quad_port_declarations[i][6]])
-    for i in range(len(quintuple_port_declarations)):
-        port_declarations.append([quintuple_port_declarations[i][0], quintuple_port_declarations[i][1].strip()+" "+quintuple_port_declarations[i][2], quintuple_port_declarations[i][7]])
-    for i in range(len(sextuple_port_declarations)):
-        port_declarations.append([sextuple_port_declarations[i][0], sextuple_port_declarations[i][1].strip()+" "+sextuple_port_declarations[i][2], sextuple_port_declarations[i][8]])
+    matches = re.findall(single_port_pattern,module_code,re.IGNORECASE|re.DOTALL)
+    for i in range (1,20) :
+        multiple_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*\w+'+rf'(?:\s*,\s*((?!input\b|output\b|inout\b)\w+)){{{i}}}'
+        matches = matches + re.findall(multiple_port_pattern,module_code,re.IGNORECASE|re.DOTALL)
+    for i in range (len(matches)) :
+        port_declarations.append([matches[i][0],matches[i][1]+" "+matches[i][2],matches[i][3]])
     for direction, port_type, port_name in port_declarations:
         port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
         port_type = re.sub(r'\)\s*\)', ')', port_type)  # Replace )) by )
@@ -216,46 +198,12 @@ def extract_internal_signals (module_code,module_name,submodule_list):
     signals = []
     signal_declarations_full = []
     single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    double_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    triple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quad_signal_pattern      = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    quintuple_signal_pattern = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    sextuple_signal_pattern  = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)\s*,\s*((?!input\b|output\b|inout\b)\w+)'
-    
-    single_signal_declarations = re.findall( single_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
-    double_signal_declarations = re.findall( double_signal_pattern, module_code,re.IGNORECASE | re.DOTALL )
-    triple_signal_declarations = re.findall(triple_signal_pattern, module_code, re.IGNORECASE  | re.DOTALL)
-    quad_signal_declarations   = re.findall(quad_signal_pattern, module_code, re.IGNORECASE  | re.DOTALL)
-    quintuple_signal_declarations = re.findall(quintuple_signal_pattern, module_code, re.IGNORECASE | re.DOTALL)
-    sextuple_signal_declarations = re.findall(sextuple_signal_pattern, module_code, re.IGNORECASE | re.DOTALL)
-
-    for i in range(len(single_signal_declarations)) :
-        signal_declarations_full.append([single_signal_declarations[i][0]+" "+single_signal_declarations[i][1],single_signal_declarations[i][2]])
-    for i in range(len(double_signal_declarations)) : 
-        signal_declarations_full.append([double_signal_declarations[i][0]+" "+double_signal_declarations[i][1],double_signal_declarations[i][2]])
-        signal_declarations_full.append([double_signal_declarations[i][0]+" "+double_signal_declarations[i][1],double_signal_declarations[i][3]])
-    for i in range(len(triple_signal_declarations)) : 
-        signal_declarations_full.append([triple_signal_declarations[i][0]+" "+triple_signal_declarations[i][1],triple_signal_declarations[i][2]])
-        signal_declarations_full.append([triple_signal_declarations[i][0]+" "+triple_signal_declarations[i][1],triple_signal_declarations[i][3]])
-        signal_declarations_full.append([triple_signal_declarations[i][0]+" "+triple_signal_declarations[i][1],triple_signal_declarations[i][4]])
-    for i in range(len(quad_signal_declarations)) : 
-        signal_declarations_full.append([quad_signal_declarations[i][0]+" "+quad_signal_declarations[i][1],quad_signal_declarations[i][2]])
-        signal_declarations_full.append([quad_signal_declarations[i][0]+" "+quad_signal_declarations[i][1],quad_signal_declarations[i][3]])
-        signal_declarations_full.append([quad_signal_declarations[i][0]+" "+quad_signal_declarations[i][1],quad_signal_declarations[i][4]])
-        signal_declarations_full.append([quad_signal_declarations[i][0]+" "+quad_signal_declarations[i][1],quad_signal_declarations[i][5]])
-    for i in range(len(quintuple_signal_declarations)):
-        signal_declarations_full.append([quintuple_signal_declarations[i][0]+" "+quintuple_signal_declarations[i][1],quintuple_signal_declarations[i][2]])
-        signal_declarations_full.append([quintuple_signal_declarations[i][0]+" "+quintuple_signal_declarations[i][1],quintuple_signal_declarations[i][3]])
-        signal_declarations_full.append([quintuple_signal_declarations[i][0]+" "+quintuple_signal_declarations[i][1],quintuple_signal_declarations[i][4]])
-        signal_declarations_full.append([quintuple_signal_declarations[i][0]+" "+quintuple_signal_declarations[i][1],quintuple_signal_declarations[i][5]])
-        signal_declarations_full.append([quintuple_signal_declarations[i][0]+" "+quintuple_signal_declarations[i][1],quintuple_signal_declarations[i][6]])
-    for i in range(len(sextuple_signal_declarations)):
-        signal_declarations_full.append([sextuple_signal_declarations[i][0]+" "+sextuple_signal_declarations[i][1],sextuple_signal_declarations[i][2]])
-        signal_declarations_full.append([sextuple_signal_declarations[i][0]+" "+sextuple_signal_declarations[i][1],sextuple_signal_declarations[i][3]])
-        signal_declarations_full.append([sextuple_signal_declarations[i][0]+" "+sextuple_signal_declarations[i][1],sextuple_signal_declarations[i][4]])
-        signal_declarations_full.append([sextuple_signal_declarations[i][0]+" "+sextuple_signal_declarations[i][1],sextuple_signal_declarations[i][5]])
-        signal_declarations_full.append([sextuple_signal_declarations[i][0]+" "+sextuple_signal_declarations[i][1],sextuple_signal_declarations[i][6]])
-        signal_declarations_full.append([sextuple_signal_declarations[i][0]+" "+sextuple_signal_declarations[i][1],sextuple_signal_declarations[i][7]])
+    matches = re.findall(single_signal_pattern,module_code,re.IGNORECASE|re.DOTALL)
+    for i in range (1,20) :
+        multiple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*(?:(?!input\b|output\b|inout\b)\w+)'+rf'(?:\s*,\s*((?!input\b|output\b|inout\b)\w+)){{{i}}}'
+        matches = matches + re.findall(multiple_signal_pattern,module_code,re.IGNORECASE|re.DOTALL)
+    for i in range (len(matches)) :
+        signal_declarations_full.append([matches[i][0]+" "+matches[i][1],matches[i][2]])
     # Deleate empty signals
     signal_declarations = [sublist for sublist in signal_declarations_full if sublist != [' ', '']]
 
