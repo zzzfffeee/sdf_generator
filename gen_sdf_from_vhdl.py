@@ -4,21 +4,21 @@ import os
 import sys
 
 DEBUG = True
-warnings_set = set() # Stockage des warnings déjà signalés
+warnings_set = set() # Store warnings that have already been logged
 
 default_config_file = r".\config_vhdl.txt"
 
-## Print les warning sans jamais écrire deux fois le même
+# Log warnings without logging the same message more than once
 def log_warning(message):
     global warnings_set
     if message not in warnings_set:
         print(f"WARNING : {message}")
         warnings_set.add(message)  
 
-## Modifie la configuration config = (input_directory, output_file, excluded_directories,excluded_files,define_list) à partir du contenue de config_file.txt
+# Update the configuration (config = input_directory, output_file, excluded_directories, excluded_files) using the contents of config_file.txt
 def extract_config(config_file,config) :
     if not os.path.exists(config_file):
-        return config  # Retourne la config d'origine si le fichier n'as pas été trouvé
+        return config  # Return the original config if the file is not found
     input_directory, output_file, excluded_directories, excluded_files = config
     with open(config_file, "r") as f:
         lines = f.readlines()
@@ -42,19 +42,77 @@ def extract_config(config_file,config) :
                     excluded_files = value.split(',')
         return input_directory, output_file, excluded_directories, excluded_files
     
-## Efface les commentaires dans le code vhdl pour ne pas perturber le fonctionnement des regex
+def help ():
+    print("""
+DEGUG:
+------
+          
+The variable `DEBUG` enables all warnings for debugging purposes. This can be disabled by
+modifying its state directly in the script if detailed warnings are not needed.
+          
+Usage:
+------   
+
+There are two main usage scenarios:
+
+1. Simple Usage (without configuration files):
+   The user provides the path to the directory containing VHDL files as an argument.
+   Optionally, the user can specify the output path for the generated SDF.csv file.
+
+   Example:
+   python program.py <vhdl_directory_path> [sdf_csv_output_path]
+
+   - <vhdl_directory_path>: Path to the directory containing VHDL files.
+   - [sdf_csv_output_path]: Optional. Path to the output SDF.csv file. If not provided, 
+                           the default is '<vhdl_directory_path>/sdf.csv'.
+
+2. Advanced Usage (with a configuration file):
+   The user provides a configuration file that specifies additional parameters, including
+   directories and files to exclude from processing. 
+
+   By default, the configuration file is `./config_vhdl.txt`, but this can be overridden
+   by specifying the path to the configuration file.
+
+   Example:
+   python program.py <config_file_path>
+
+   - <config_file_path>: Path to the configuration file (e.g., "/path/to/config.txt").
+
+Configuration File:
+-------------------
+The configuration file must be written in the following format to ensure proper functionality:
+
+  INPUT_DIRECTORY = "/path/to/vhdl_files"
+  OUTPUT_FILE = "/path/to/output/sdf.csv"
+  EXCLUDE_DIRECTORIES = exclude_dir_1, exclude_dir_2
+  EXCLUDE_FILES = exclude_file_1.vhdl, exclude_file_2.vhdl
+
+
+This format allows the user to define:
+  - Input directory for VHDL files.
+  - Output path for the generated SDF.csv file.
+  - Directories and files to exclude from processing.
+
+Notes:
+------
+- To modify the default configuration file, update the `default_config_file` variable in the script.
+- Ensure that the configuration file is formatted correctly to avoid processing errors.
+""")
+    
+
+# Remove comments from VHDL code to avoid disrupting regex functionality
 def remove_comments(vhdl_code):                                                            
     code = re.sub(r'--.*', '', vhdl_code)
     return code
 
-## Renvoi le nom de l'entity à partir d'un code vhdl
+# Extract the entity name from VHDL code
 def find_entity_name(vhdl_code):
     entity_pattern = r'\bentity\s+(\w+)\s+is\b'
     match = re.search(entity_pattern, vhdl_code, re.IGNORECASE)
     return match.group(1) if match else None
 
 
-## Revoi la taille du signal en bit à partir du signal_type (rq : lorsque le nom du générique est présent dans le signal_type, il n'est pas remplacé par la valeur qui lui est assignée) 
+# Return the size of the signal in bits based on its type (Note: Generic names in the signal type are not replaced by assigned values) 
 def signal_type_to_size(signal_type):
     size_pattern = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*(\d+)\s*(?:-\s*(\d+))?\s*downto\s*(\d+)\s*\)'
     size_pattern_generic = r'(?:std_logic_vector|std_ulogic_vector|unsigned)\s*\(\s*((?:\w+)|(?:\(.*?\)))\s*(?:-\s*(\d+))?\s*(?:-\s*(\d+))?\s*downto\s*(\d+)\s*\)'
@@ -78,20 +136,22 @@ def signal_type_to_size(signal_type):
     else :
         signal_size = 'unknown' 
         if(DEBUG) :
-            ## Lorsque le mode debug est activé
+            # When debug mode is enabled
             log_warning(f'size of {signal_type} is unknown')
     return signal_size
 
-## Renvoi la liste des fonctions chaque éléments contient le nom de la fonction et le code de la fonction 
+# Return a list of functions, each element containing the function name and its code 
 def extract_process(vhdl_code) : 
-    process_pattern = r'((?:(\w+)\s*:)?\s*process .*? is.*?(?:end\s*(?:process|\2)\s*;))'
+    
+    process_pattern = r'((?:(\w+)\s*:)?\s*process.*?(?:end\s*(?:process|\2)))'
+
     matches = re.findall(process_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
     process_list =[]
     for i in range(len(matches)) : 
         process_list.append(["process "+matches[i][1],matches[i][0]])
     return process_list
 
-## Renvoi la liste des fonctions chaque éléments contient le nom de la fonction et le code de la fonction 
+# Return a list of functions, each element containing the function name and its code 
 def extract_functions(vhdl_code) : 
     function_pattern = r'(function\s*(\w+).*?(?:end\s*(?:function|\2))\s*;)'
     matches = re.findall(function_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
@@ -100,7 +160,7 @@ def extract_functions(vhdl_code) :
         function_list.append(["function "+matches[i][1],matches[i][0]])
     return function_list
 
-# retourne la liste avec [nom_variable,type_variable,size_variable,nom du process fonction instance]
+# Return a list with [variable_name, variable_type, variable_size, process/function/instance name]
 def extract_variables(list) :
     variable_pattern = r'variable\s*(\w+)\s*:\s*([\w\s\(\)\'\+\-]+);?'
     variables = []
@@ -111,9 +171,6 @@ def extract_variables(list) :
     return variables
                          
 
-
-
-
 def extract_component_ports(vhdl_code):
 
     component_pattern = r'COMPONENT\s+(\w+)\s*(?:IS\s*)?(?:GENERIC\s*\((.*?)\)\s*;)?\s*port\s*\((.*?)end\s+component\s*'
@@ -121,36 +178,18 @@ def extract_component_ports(vhdl_code):
     components_declarations = re.findall(component_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
 
     components = [] # list all components : [[comp_1_name,comp_1_port],[comp_2_name,comp_2_port],...]
-
     for component_name, generic, port_lines in components_declarations : 
         component = [component_name.strip().lower()]
         ports=[]
         port_declarations = []
-        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
-        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
-        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
-        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
-        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
-        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\))\s*'
-        single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
-        double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
-        triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
-        quad_port_declarations   = re.findall(quad_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
-        quintuple_port_declarations = re.findall(quintuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
-        sextuple_port_declarations = re.findall(sextuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
-
-        for i in range(len(single_port_declarations)) :
-            port_declarations.append(single_port_declarations[i])
-        for i in range(len(double_port_declarations)) : 
-            port_declarations.append([double_port_declarations[i][0],double_port_declarations[i][-2],double_port_declarations[i][-1]])
-        for i in range(len(triple_port_declarations)) : 
-            port_declarations.append([triple_port_declarations[i][0],triple_port_declarations[i][-2],triple_port_declarations[i][-1]])
-        for i in range(len(quad_port_declarations)) : 
-            port_declarations.append([quad_port_declarations[i][0],quad_port_declarations[i][-2],quad_port_declarations[i][-1]])
-        for i in range(len(quintuple_port_declarations)):
-            port_declarations.append([quintuple_port_declarations[i][0], quintuple_port_declarations[i][-2], quintuple_port_declarations[i][-1]])
-        for i in range(len(sextuple_port_declarations)):
-            port_declarations.append([sextuple_port_declarations[i][0], sextuple_port_declarations[i][-2], sextuple_port_declarations[i][-1]])
+        port_lines = port_lines.split(';')
+        for line in port_lines :
+            multiple_port_pattern    = r'((?:\w+\s*,\s*)*\w+)\s*:\s*(\bin\b|\bout\b|inout)\s*([\w\s\(\)\'+-]+)\s*'
+            result = re.search(multiple_port_pattern,line,re.IGNORECASE|re.DOTALL)
+            if result :
+                name_list = result.group(1).split(',')
+                for j in range (len(name_list)):
+                    port_declarations.append([name_list[j],result.group(2),result.group(3)])
         
         for port_name, direction, port_type in port_declarations:
             port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
@@ -165,10 +204,9 @@ def extract_component_ports(vhdl_code):
             ])
         component.append(ports) 
         components.append(component)
-
     return components
 
-## Renvoi la liste des ports [nom_port_1,direction(in/out/inout),type],[nom_port_2,direction(in/out/inout),type],...]
+# Return a list of ports: [[port_name, direction (in/out/inout), type],...]
 def extract_module_ports(vhdl_code):
 
     port_pattern = r'entity\s+\w+\s+is(?:.*?)port\s*\((.*?)end\s+'
@@ -178,30 +216,15 @@ def extract_module_ports(vhdl_code):
     if match:
         port_declarations = []
         port_lines = match.group(1)
-        single_port_pattern = r'(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
-        double_port_pattern = r'(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
-        triple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
-        quad_port_pattern   = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
-        quintuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
-        sextuple_port_pattern = r'(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*(in|out|inout)\s*([\w\s\(\)\'+-]+)\s*(?:\s*;|\s*\)\;)\s*'
-        single_port_declarations = re.findall( single_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
-        double_port_declarations = re.findall( double_port_pattern, port_lines,re.IGNORECASE | re.DOTALL )
-        triple_port_declarations = re.findall(triple_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
-        quad_port_declarations   = re.findall(quad_port_pattern, port_lines, re.IGNORECASE  | re.DOTALL)
-        quintuple_port_declarations = re.findall(quintuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
-        sextuple_port_declarations = re.findall(sextuple_port_pattern, port_lines, re.IGNORECASE | re.DOTALL)
-        for i in range(len(single_port_declarations)) :
-            port_declarations.append(single_port_declarations[i])
-        for i in range(len(double_port_declarations)) : 
-            port_declarations.append([double_port_declarations[i][0],double_port_declarations[i][-2],double_port_declarations[i][-1]])
-        for i in range(len(triple_port_declarations)) : 
-            port_declarations.append([triple_port_declarations[i][0],triple_port_declarations[i][-2],triple_port_declarations[i][-1]])
-        for i in range(len(quad_port_declarations)) : 
-            port_declarations.append([quad_port_declarations[i][0],quad_port_declarations[i][-2],quad_port_declarations[i][-1]])
-        for i in range(len(quintuple_port_declarations)):
-            port_declarations.append([quintuple_port_declarations[i][0], quintuple_port_declarations[i][-2], quintuple_port_declarations[i][-1]])
-        for i in range(len(sextuple_port_declarations)):
-            port_declarations.append([sextuple_port_declarations[i][0], sextuple_port_declarations[i][-2], sextuple_port_declarations[i][-1]])
+        port_lines = port_lines.split(';')
+        for line in port_lines :
+            multiple_port_pattern    = r'((?:\w+\s*,\s*)*\w+)\s*:\s*(\bin\b|\bout\b|inout)\s*([\w\s\(\)\'+-]+)\s*'
+            result = re.search(multiple_port_pattern,line,re.IGNORECASE|re.DOTALL)
+            if result :
+                name_list = result.group(1).split(',')
+                for j in range (len(name_list)):
+                    port_declarations.append([name_list[j],result.group(2),result.group(3)])
+    
         for port_name, direction, port_type in port_declarations:
             port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
             port_type = re.sub(r'\)\s*\)', ')', port_type)  # Replace )) by )
@@ -215,53 +238,18 @@ def extract_module_ports(vhdl_code):
     return ports
 
 
-# Extrait les signaux internes pour chaque section de code de module
+# Extract internal signals for each module code section
 def extract_internal_signals(vhdl_code,port_map_list, entity_name):
-
-    signal_pattern = r'signal\s+(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
-    double_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
-    triple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
-    quad_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
-    quintuple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
-    sextuple_signal_pattern = r'signal\s+(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
-
     signals = []
-    
-    matches_1 = re.findall(signal_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
-    matches_2 = re.findall(double_signal_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
-    matches_3 = re.findall(triple_signal_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
-    matches_4 = re.findall(quad_signal_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
-    matches_5 = re.findall(quintuple_signal_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
-    matches_6 = re.findall(sextuple_signal_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
-    matches = []  # concatenation of matches
-    for match in matches_1:
-        matches.append((match[0], match[1]))  
-    for match in matches_2:
-        matches.append((match[0], match[2]))
-        matches.append((match[1], match[2]))
-    for match in matches_3:
-        matches.append((match[0], match[3]))
-        matches.append((match[1], match[3]))
-        matches.append((match[2], match[3]))
-    for match in matches_4:
-        matches.append((match[0], match[4]))
-        matches.append((match[1], match[4]))
-        matches.append((match[2], match[4]))
-        matches.append((match[3], match[4]))
-    for match in matches_5:
-        matches.append((match[0], match[5]))
-        matches.append((match[1], match[5]))
-        matches.append((match[2], match[5]))
-        matches.append((match[3], match[5]))
-        matches.append((match[4], match[5]))
+    matches = []    
+    multiple_signal_pattern = r'signal\s+((?:\w+\s*,\s*)*\w+)\s*:\s*([\w\s\(\)\'+-]+)\s*;?'
+    matches_2 = re.findall(multiple_signal_pattern,vhdl_code,re.IGNORECASE|re.DOTALL)
+    for matche_2 in matches_2 : 
+        matche_2_list = matche_2[0].split(',')
+        for j in range (len(matche_2_list)) :
+            matches.append([matche_2_list[j],matche_2[1]])
 
-    for match in matches_6:
-        matches.append((match[0], match[6]))
-        matches.append((match[1], match[6]))
-        matches.append((match[2], match[6]))
-        matches.append((match[3], match[6]))
-        matches.append((match[4], match[6]))
-        matches.append((match[5], match[6]))
+    
     for signal_name, signal_type in matches: 
         instance_scr_name = []
         instance_dst_name = []
@@ -288,7 +276,7 @@ def extract_internal_signals(vhdl_code,port_map_list, entity_name):
     
     return signals
 
-# Extrait les signaux provennant des ports du module pour chaque section de code de module
+# Extract signals from module ports for each module code section
 def extract_external_signals (module, port_map_list,entity_name) :
     signals = []
     for port in module :
@@ -297,7 +285,6 @@ def extract_external_signals (module, port_map_list,entity_name) :
         module_dst_name = []
         module_src_name = []
         signal_size = signal_type_to_size(port[2])
-        
         if((port[1] == 'in') | (port[1] == 'inout')) :
             module_src_name.append('input')
             instance_scr_name.append('input')
@@ -323,7 +310,7 @@ def extract_external_signals (module, port_map_list,entity_name) :
         signals.append([port[0], port[2],signal_size,instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     return signals 
         
-# Retourne la direction d'un port (in/out/inout)
+# Return the direction of a port (in/out/inout)
 def dir_finding(component_name,port_name,component_list) : 
     for component_name_i, ports in component_list : 
         if (component_name_i==component_name) : 
@@ -332,9 +319,8 @@ def dir_finding(component_name,port_name,component_list) :
                     return port[1]
                 
 
-
+# Return a list of component instance : [[instance,component,[port,signal,dir(in/out/inout)],...],...]
 def extract_port_map(vhdl_code, component_list) :
-    
     port_map_pattern = r'(\w+)\s*:\s*(\w+)\s+(?:generic\s+map\s*\(.*?\)\s*)?port\s+map\s*\((.*?)\)\s*;'
 
     matches = re.findall(port_map_pattern, vhdl_code, re.IGNORECASE | re.DOTALL)
@@ -342,11 +328,19 @@ def extract_port_map(vhdl_code, component_list) :
     for instance_name, component_name, ports in matches:
         port_mapping = []
         port_lines = ports.split(',')
-        for line in port_lines:
-            port, signal_full = [item.strip().lower() for item in line.split('=>',maxsplit=1)]
+        for i in range(len(port_lines)):
+            if re.search('=>',port_lines[i],re.IGNORECASE|re.DOTALL) != None :
+                port, signal_full = [item.strip().lower() for item in port_lines[i].split('=>',maxsplit=1)]
+                
+            else : # Case where the port map is assigned in this manner: port map (clk, in_a, out_b, ...)"
+                signal_full = port_lines[i]
+                for component_name_i, component_ports in component_list : 
+                    if (component_name_i==component_name) : 
+                        port = component_ports[i][0] # Use only the order of the component's ports to associate them with signals"
+                        break
             signal_match = re.match(r'(\w+)', signal_full)
             signal = signal_match.group(1) if signal_match else signal_full
-            port_mapping.append([port,signal,dir_finding(component_name.lower(),port,component_list)])
+            port_mapping.append([port,signal.strip().lower(),dir_finding(component_name.lower(),port,component_list)])
         port_maps.append([
             instance_name.lower(),
             component_name.lower(),
@@ -431,9 +425,8 @@ def write_signals_to_csv(input_file_name,output_file_path, vhdl_code,components_
                     variable[3]
                 ])
 
-        
+# Process all signals extractions in vhdl file       
 def extract (input_file_name,input_file_path,output_file_path) : 
-
     try:
         with open(input_file_path, "r") as file:
             vhdl_code_full = file.read()
@@ -468,14 +461,18 @@ def process_files_in_directory(directory_path, output_txt_path, excluded_directo
             print(f".vhd parsing done successfully\n")    
 
 
-# Main program
+# Main program entry point
 def main():
+    
     config = (0,0,[],[])
     if DEBUG : 
         print('DEBUG Mode enable')
     else : 
         print('DEBUG Mode disable')
     if len(sys.argv) > 1 :
+        if (sys.argv[1] == "-help") :
+            help()
+            return 0
         for arg in sys.argv :
             if arg.endswith(".txt") :
                 print (f"Config file : {arg}")
