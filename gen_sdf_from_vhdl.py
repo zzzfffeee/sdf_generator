@@ -57,13 +57,13 @@ There are two main usage scenarios:
 
 1. Simple Usage (without configuration files):
    The user provides the path to the directory containing VHDL files as an argument.
-   Optionally, the user can specify the output path for the generated SDF.csv file.
+   Optionally, the user can specify the output path for the generated sdf.csv file.
 
    Example:
    python program.py <vhdl_directory_path> [sdf_csv_output_path]
 
    - <vhdl_directory_path>: Path to the directory containing VHDL files.
-   - [sdf_csv_output_path]: Optional. Path to the output SDF.csv file. If not provided, 
+   - [sdf_csv_output_path]: Optional. Path to the output sdf.csv file. If not provided, 
                            the default is '<vhdl_directory_path>/sdf.csv'.
 
 2. Advanced Usage (with a configuration file):
@@ -90,7 +90,7 @@ The configuration file must be written in the following format to ensure proper 
 
 This format allows the user to define:
   - Input directory for VHDL files.
-  - Output path for the generated SDF.csv file.
+  - Output path for the generated sdf.csv file.
   - Directories and files to exclude from processing.
 
 Notes:

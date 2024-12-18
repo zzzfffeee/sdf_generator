@@ -4,13 +4,11 @@ import os
 import sys
 
 DEBUG = True
-warnings_set = set() # Stockage des warnings déjà signalés
+warnings_set = set() # Store warnings that have already been logged
 
 default_config_file = r".\config_verilog.txt"
 
-
-
-
+# Log warnings without logging the same message more than once
 def log_warning(message):
     global warnings_set
     if message not in warnings_set:
@@ -18,52 +16,111 @@ def log_warning(message):
         warnings_set.add(message)   
 
 
-## Modifie la configuration config = (input_directory, output_file, excluded_directories,excluded_files,define_list) à partir du contenue de config_file.txt
+# Update the configuration (config = input_directory, output_file, excluded_directories, excluded_files) using the contents of config_file.txt
 def extract_config(config_file,config) :
     if not os.path.exists(config_file):
-        return config  # Retourne la config d'origine si le fichier n'as pas été trouvé
+        return config # Return the original config if the file is not found
     input_directory, output_file, excluded_directories, excluded_files, define_list = config
     with open(config_file, "r") as f:
         lines = f.readlines()
         for line in lines:
             line=line.strip()
-            if line.startswith("input_directory ="):
+            if line.lower().startswith("input_directory ="):
                 value = line.split("=")[1].strip().strip('"')
                 if not input_directory:  
                     input_directory = value
-            elif line.startswith("output_file ="):
+            elif line.lower().startswith("output_file ="):
                 value = line.split("=")[1].strip().strip('"')
                 if not output_file: 
                     output_file = value
-            elif line.startswith("excluded_directories ="):
+            elif line.lower().startswith("excluded_directories ="):
                 value = line.split("=")[1].strip().strip('"')
                 if not excluded_directories: 
                     excluded_directories = value.split(',')
-            elif line.startswith("excluded_files ="):
+            elif line.lower().startswith("excluded_files ="):
                 value = line.split("=")[1].strip().strip('"')
                 if not excluded_files: 
                     excluded_files = value.split(',')
-            elif line.startswith("define_list ="):
+            elif line.lower().startswith("define_list ="):
                 value = line.split("=")[1].strip().strip('"')
                 if not define_list:  
                     define_list = value.split(',')
         return input_directory, output_file, excluded_directories, excluded_files, define_list
     
     
-## Efface les commentaires dans le code verilog pour ne pas perturber le fonctionnement des regex
+def help ():
+    print("""
+DEGUG:
+------
+          
+The variable `DEBUG` enables all warnings for debugging purposes. This can be disabled by
+modifying its state directly in the script if detailed warnings are not needed.
+          
+Usage:
+------   
+
+There are two main usage scenarios:
+
+1. Simple Usage (without configuration files):
+   The user provides the path to the directory containing Verilog files as an argument.
+   Optionally, the user can specify the output path for the generated sdf.csv file.
+
+   Example:
+   python program.py <verilog_directory_path> [sdf_csv_output_path]
+
+   - <verilog_directory_path>: Path to the directory containing Verilog files.
+   - [sdf_csv_output_path]: Optional. Path to the output sdf.csv file. If not provided, 
+                           the default is '<Verilog_directory_path>/sdf.csv'.
+
+2. Advanced Usage (with a configuration file):
+   The user provides a configuration file that specifies additional parameters, including
+   directories and files to exclude from processing. 
+
+   By default, the configuration file is `./config_verilog.txt`, but this can be overridden
+   by specifying the path to the configuration file.
+
+   Example:
+   python program.py <config_file_path>
+
+   - <config_file_path>: Path to the configuration file (e.g., "/path/to/config.txt").
+
+Configuration File:
+-------------------
+The configuration file must be written in the following format to ensure proper functionality:
+
+  INPUT_DIRECTORY = "/path/to/verilog_files"
+  OUTPUT_FILE = "/path/to/output/sdf.csv"
+  EXCLUDE_DIRECTORIES = exclude_dir_1, exclude_dir_2
+  EXCLUDE_FILES = exclude_file_1.verilog, exclude_file_2.verilog
+  define_list = define_1,define_2
+
+
+This format allows the user to define:
+  - Input directory for Verilog files.
+  - Output path for the generated sdf.csv file.
+  - Directories and files to exclude from processing.
+
+Notes:
+------
+- To modify the default configuration file, update the `default_config_file` variable in the script.
+- Ensure that the configuration file is formatted correctly to avoid processing errors.
+""")
+    
+
+# Remove comments from Verilog code to avoid disrupting regex functionality
 def remove_comments(verilog_code):                                                            
     verilog_code = re.sub(r'//.*', '', verilog_code)                                                
     verilog_code = re.sub(r'/\*.*?\*/', '', verilog_code, flags=re.DOTALL)                           
     verilog_code = re.sub(r'function\s.*?endfunction', '', verilog_code, flags=re.DOTALL) 
     return verilog_code
     
-## Renvoi le nom du module à partir d'un code verilog
+# Extract the module name from Verilog code
 def find_module_name(verilog_code):
-    module_pattern = r'module\s*(\w+)'  # Recherche le mot-clé "module" suivi du nom
+    module_pattern = r'module\s*(\w+)'  # Search key-word "module" followed by the module_name
     match = re.search(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
     return match.group(1).strip().lower() if match else None
 
-## Renvoi [[nom_module_1,...],[code_module_1,...]] à partir du code verilog
+# Return [(module_1_name,module_1_code),(module_2_name,module_2_code),...]
 def find_modules(verilog_code):
     module_pattern =  r'(module\s+(\w+)\s*(?:#\s*\(.*?\))?\s*\((.*?\)\s*;.*?)endmodule)'
     matches = re.findall(module_pattern, verilog_code, re.IGNORECASE | re.DOTALL)
@@ -71,7 +128,7 @@ def find_modules(verilog_code):
         return [(match[1].lower(), match[0]) for match in matches]
     return 0
 
-## Revoi la taille du signal en bit à partir du signal_type (rq : lorsque le nom du générique est présent dans le signal_type, il n'est pas remplacé par la valeur qui lui est assignée)
+# Return the size of the signal in bits based on its type 
 def size_of_signal(signal_type):
     size_pattern = r'\[\s*(\d+)\s*(?:-\s*(\d+))?\s*:\s*(\d+)\s*\]'
     size_pattern_generic = r'\[\s*((?:\w+)|(?:\(.*?\))|(?:[\d\w]+\s*[\*\/]\s*[\d\w]+)|(?:[\w]+\s*[\+\-]\s*[\w]+))\s*([\-\+]\s*\d+)?\s*([\-\+]\s*\d+)?\s*:\s*(\d+)\s*\]'
@@ -92,13 +149,14 @@ def size_of_signal(signal_type):
     else :
         signal_size = 'unknown'
         if(DEBUG == True) :
+            # When debug mode is enabled
             log_warning(f'size of {signal_type} is unknown')  
     return signal_size
 
-## Gère les ifdef, ifndef à partir de la liste define_liste : renvoie le code sans les parties non définies
+# Manage ifdef, ifndef with define_list : return the code without undefined code section
 def manage_define(verilog_code,define_list) :
     pattern_clean = r"^`(?!ifdef|ifndef|else|include)\w.*"
-    verilog_code = re.sub(pattern_clean, "", verilog_code, flags=re.MULTILINE|re.IGNORECASE) # enlève tout ligne contenant le carractère ` mais qui n'est pas important 
+    verilog_code = re.sub(pattern_clean, "", verilog_code, flags=re.MULTILINE|re.IGNORECASE) # Deleate lines with '`' wich is not followed by ifdef,ifned,else and endif
     ifdef_pattern = r'`ifdef\s*(\w+)\s*([^`]*)(?:`else([^`]*))?`endif'
     ifndef_pattern = r'`ifndef\s*(\w+)\s*([^`]*)(?:`else([^`]*))?`endif'
     while((re.search(ifdef_pattern,verilog_code,re.IGNORECASE|re.DOTALL)!=None)|(re.search
@@ -123,19 +181,20 @@ def manage_define(verilog_code,define_list) :
                 verilog_code = re.sub(ifndef_pattern,match_2.group(2),verilog_code,count=1,flags=re.DOTALL|re.IGNORECASE)
     return verilog_code
     
-## Renvoi la liste suivante : [[nom_module_1,[ [nom_port_1,direction(in/out/inout),type],[nom_port_2,direction(in/out/inout),type],...]]   ,[nom_module_2,[...]] , ... ]
+# Return the following type of list : [[module_1_name,[[port_1_name,direction(in/out/inout),type],...]],...]
 def extract_module(module_name, module_code):
     ports = []
     port_declarations = []
-    single_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+)'
-    matches = re.findall(single_port_pattern,module_code,re.IGNORECASE|re.DOTALL)
-    for i in range (1,20) :
-        multiple_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*\w+'+rf'(?:\s*,\s*((?!input\b|output\b|inout\b)\w+)){{{i}}}'
-        matches = matches + re.findall(multiple_port_pattern,module_code,re.IGNORECASE|re.DOTALL)
-    for i in range (len(matches)) :
-        port_declarations.append([matches[i][0],matches[i][1]+" "+matches[i][2],matches[i][3]])
+    multiple_port_pattern    = r'\b(input|output|inout)\s*(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)?\s*(\[\s*[\w\d\s\(\)\:\-\+/\*]+\])?\s*(\w+(?:\s*,\s*((?!input\b|output\b|inout\b)\w+))*)'
+    port_lines = module_code.split('\n')
+    for line in port_lines :
+        result = re.search(multiple_port_pattern,line,re.IGNORECASE|re.DOTALL)
+        if result : 
+            name_list = result.group(4).split(',')
+            for i in range (len(name_list)):
+                port_declarations.append([result.group(1),(result.group(2) if result.group(2) is not None else "").strip()+" "+(result.group(3) if result.group(3) is not None else "").strip(),name_list[i]])
     for direction, port_type, port_name in port_declarations:
-        port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Earase \t, \n, \r
+        port_type = re.sub(r'[\t\n\r]+', '', port_type).strip().lower()  # Deleate \t, \n, \r
         port_type = re.sub(r'\)\s*\)', ')', port_type)  # Replace )) by )
         if 'wire' not in port_type and 'reg' not in port_type:
             port_type = 'wire ' + port_type
@@ -149,7 +208,7 @@ def extract_module(module_name, module_code):
 
     return module
 
-# Retourne la liste : [nom_du_port,direction,type] si le port est trouvé, warning sinon
+# Return the following type of list  : [port_name,direction,type] if the port is found else warning 
 def find_port(port_name, module_name,module_list) : 
     for i in range (len(module_list)) :
         if (module_list[i][1][0] == module_name) :
@@ -161,7 +220,7 @@ def find_port(port_name, module_name,module_list) :
     log_warning(f"module {module_name} is not found")
     return ['','unknow']
     
-# Extrait tout les sous-modules à partir du code d'un module. Retourne : [[inst_1,sub_module_name,submodule_ports],...]
+# Extract all submodules from code, return : [[inst_1,sub_module_name,submodule_ports],...]
 def extract_submodule_list(verilog_code, module_list) :
     sub_module_pattern = r'(?:(?:\w+)\s*#\s*\(\s*parameter )|(\w+)\s*(?:#\s*\((?:.*?(?:\(.*?\)\s*)*)*\))?\s*(\w+)\s*\(\s*\.(.*?)(?:\)\s*\);)'
     signal_inst_pattern = r'\s*\.(\w+)\s*\(\s*(\w+)\s*(?:\[.*?\])?\s*\)'
@@ -193,17 +252,18 @@ def extract_submodule_list(verilog_code, module_list) :
             submodule_ports ])
     return submodules_inst
 
-# Extrait les signaux internes pour chaque section de code de module
+# Extract internal signals for each module code section
 def extract_internal_signals (module_code,module_name,submodule_list):
     signals = []
     signal_declarations_full = []
-    single_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?!input\b|output\b|inout\b)\w+)\s*'
-    matches = re.findall(single_signal_pattern,module_code,re.IGNORECASE|re.DOTALL)
-    for i in range (1,20) :
-        multiple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*(?:(?!input\b|output\b|inout\b)\w+)'+rf'(?:\s*,\s*((?!input\b|output\b|inout\b)\w+)){{{i}}}'
-        matches = matches + re.findall(multiple_signal_pattern,module_code,re.IGNORECASE|re.DOTALL)
-    for i in range (len(matches)) :
-        signal_declarations_full.append([matches[i][0]+" "+matches[i][1],matches[i][2]])
+    multiple_signal_pattern    = r'\b(?:input|output|inout)\b\s*(?:wire|reg).*?[\),;]|(\bwire\b\s*(?:signed|unsigned)?|\breg\b\s*(?:signed|unsigned)?)\s*(\[\s*[\w\d\s\:\-\+\(\)/\*]+\])?\s*((?:(?!input\b|output\b|inout\b)\w+)(?:\s*,\s*((?!input\b|output\b|inout\b)\w+))*)'
+    code_lines = module_code.split(';')
+    for line in code_lines :
+        result = re.search(multiple_signal_pattern,line,re.IGNORECASE|re.DOTALL)
+        if result : 
+            name_list = (result.group(3) if result.group(1) is not None else "").split(',')
+            for i in range (len(name_list)):
+                signal_declarations_full.append([(result.group(1) if result.group(1) is not None else "").strip() +" "+(result.group(2) if result.group(2) is not None else "").strip(),name_list[i]])
     # Deleate empty signals
     signal_declarations = [sublist for sublist in signal_declarations_full if sublist != [' ', '']]
 
@@ -233,7 +293,7 @@ def extract_internal_signals (module_code,module_name,submodule_list):
         signals.append([signal_name.strip().lower(), signal_type.strip().lower(),signal_size.strip().lower(),instance_scr_name,module_src_name,instance_dst_name,module_dst_name])
     return signals
 
-# Extrait les signaux provennant des ports du module pour chaque section de code de module : [[name_port_1,dir,size,instance_src_name,module_src_name,instance_dst_name,module_dst_name],[name_port_2,dir,...],...]
+# Extract signals from module ports for each module code section : [[port_name_1,dir,size,instance_src_name,module_src_name,instance_dst_name,module_dst_name],[port_name_2,dir,...],...]
 def extract_external_signals (module_list,module_name,submodule_list) :
     signals = []
     module = []
@@ -356,7 +416,7 @@ def process_files_in_directory(directory_path, output_txt_path, define_list,excl
             for root, dirs, files in os.walk(directory_path):
                 dirs[:] = [d for d in dirs if d not in excluded_directories]
                 files[:] = [f for f in files if f not in excluded_files]      
-                # extract all modules in directory in modules
+                # Extract all modules in directory in modules
                 for file_name in files:
 
                     if file_name.lower().endswith(".v"):                                                           
@@ -388,6 +448,9 @@ def main():
     else : 
         print('DEBUG Mode disable')
     if len(sys.argv) > 1 :
+        if (sys.argv[1] == "-help") :
+            help()
+            return 0
         for arg in sys.argv :
             if arg.endswith(".txt") :
                 print (f"Config file : {arg}")
